@@ -96,7 +96,13 @@ async function applySnapshot(m) {
     if (S.reconnected && !S.firstMsg) { S.focusSeq = m.focus.seq; S.reconnected = false; }
     else if (m.focus.seq > S.focusSeq || S.firstMsg) { S.focusSeq = m.focus.seq; focus = m.focus; }
   }
-  if (S.firstMsg) { S.firstMsg = false; if (!focus || focus.tab !== m.active) focus = m.active ? { tab: m.active } : null; }
+  if (S.firstMsg) {
+    S.firstMsg = false;
+    const h = parseHash();  // a link (#/tab[/index]) wins over the server's last focus
+    if (h && ids.has(h.tab)) focus = h;
+    else if (h) setTimeout(() => flash('The linked tab is closed'), 300);
+    else if (!focus || focus.tab !== m.active) focus = m.active ? { tab: m.active } : null;
+  }
   // refresh stale data of the active tab
   for (const t of m.tabs) {
     const d = S.data.get(t.id);
@@ -124,7 +130,7 @@ async function activate(id, opts = {}) {
   const prev = td();
   if (prev && prev.id !== id) prev.ui.scrollTop = $('grid').scrollTop;
   S.active = id;
-  if (!id) { render(); return; }
+  if (!id) { render(); updateHash(); return; }
   const d = tabData(id);
   if (!d.items || d.version !== (summary(id) || {}).version) await loadTab(id);
   if (S.active !== id) return;
@@ -386,10 +392,29 @@ function setView(v) {
 }
 
 let reportTimer = 0;
+// ------------------------------------------------------------------ links: #/<tab> (grid) or #/<tab>/<index> (image)
+function parseHash() {
+  const m = location.hash.match(/^#\/([\w-]+)(?:\/(\d+))?/);
+  if (!m) return null;
+  return m[2] != null ? { tab: m[1], index: +m[2], view: 'single' } : { tab: m[1], view: 'grid' };
+}
+function updateHash() {
+  const d = td();
+  const h = !d ? '' : `#/${d.id}` + (d.ui.view === 'single' && d.list.length ? `/${d.list[d.pos]}` : '');
+  if (location.hash !== h) history.replaceState(null, '', h || location.pathname + location.search);
+}
+window.addEventListener('hashchange', () => {
+  const h = parseHash();
+  if (!h) return;
+  if (S.tabs.some((t) => t.id === h.tab)) activate(h.tab, h);
+  else flash('This tab is closed');
+});
+
 function reportView() {
   clearTimeout(reportTimer);
   reportTimer = setTimeout(() => {
     const d = td();
+    updateHash();
     api('POST', '/api/view', d ? { tab: d.id, view: d.ui.view, index: d.list[d.pos] ?? null } : { tab: null }).catch(() => {});
   }, 250);
 }

@@ -44,6 +44,7 @@ class Store:
         self._listeners: set[asyncio.Queue] = set()
         self._save_handle = None
         self.on_open = None  # callback when a tab is opened (browser auto-open)
+        self.base_url = "http://localhost:8765/"  # set by the server; used for links
         self.inbox: list[dict] = []  # user notes not yet delivered to the agent
         self._inbox_event: asyncio.Event | None = None
         self._load()
@@ -112,9 +113,20 @@ class Store:
         return len(self._listeners)
 
     # ------------------------------------------------------------------ helpers
+    def url(self, tab_id: str, index: int | None = None) -> str:
+        return f"{self.base_url}#/{tab_id}" + ("" if index is None else f"/{index}")
+
+    def link(self, tab_id, target=None) -> dict:
+        t = self.tab(tab_id)
+        i = None if target is None else self._resolve(t, [target])[0]
+        r = {"url": self.url(t["id"], i), "tab": t["id"]}
+        if i is not None:
+            r["index"] = i
+        return r
+
     def summary(self, t: dict) -> dict:
         return {
-            "id": t["id"], "title": t["title"], "note": t.get("note", ""), "count": len(t["items"]),
+            "id": t["id"], "url": self.url(t["id"]), "title": t["title"], "note": t.get("note", ""), "count": len(t["items"]),
             "flagged": sum(1 for it in t["items"] if it.get("flag")),
             "noted": sum(1 for it in t["items"] if it.get("notes")), "display": t["display"],
             "version": t["version"],
@@ -198,13 +210,18 @@ class Store:
 
     # ------------------------------------------------------------------ operations
     def open_tab(self, images, title: str | None = None, note: str | None = None, display: str | None = None,
-                 lo=None, hi=None, recursive: bool = False, background: bool = False, view: str | None = None) -> dict:
+                 lo=None, hi=None, recursive: bool = False, background: bool = False, view: str | None = None,
+                 session: str | None = None) -> dict:
         items = self._items(images, recursive)
         tid = secrets.token_hex(3)
         while tid in self.tabs:
             tid = secrets.token_hex(3)
         if not title:
-            title = os.path.basename(items[0]["path"]) if len(items) == 1 else f"{len(items)} images"
+            title = session or (os.path.basename(items[0]["path"]) if len(items) == 1 else f"{len(items)} images")
+            taken = {self.tabs[i]["title"] for i in self.order}
+            base, n = title, 2
+            while title in taken:  # "session", "session 2", ...
+                title, n = f"{base} {n}", n + 1
         t = {"id": tid, "title": str(title), "note": note or "", "items": items, "version": 1,
              "display": self._display(display, lo, hi), "created": time.time()}
         self.tabs[tid] = t
@@ -222,7 +239,8 @@ class Store:
 
     def _result(self, t: dict) -> dict:
         missing = sum(1 for it in t["items"] if not os.path.isfile(it["path"]))
-        r = {"tab": t["id"], "count": len(t["items"]), "flagged": sum(1 for it in t["items"] if it.get("flag"))}
+        r = {"tab": t["id"], "title": t["title"], "url": self.url(t["id"]), "count": len(t["items"]),
+             "flagged": sum(1 for it in t["items"] if it.get("flag"))}
         if missing:
             r["missing"] = missing
         return r
@@ -345,7 +363,7 @@ class Store:
         if f.get("view") not in (None, "grid", "single"):
             raise UserError("view must be grid or single")
         self._changed(f)
-        return f
+        return {**f, "url": self.url(t["id"], f.get("index"))}
 
     def items(self, tab_id, offset: int = 0, limit: int = 100, flagged_only: bool = False,
               noted_only: bool = False) -> dict:
@@ -370,5 +388,6 @@ class Store:
         if isinstance(i, int) and 0 <= i < len(t["items"]):
             v["item"] = {"i": i, **t["items"][i]}
         v["title"] = t["title"]
+        v["url"] = self.url(t["id"], i if v.get("view") == "single" and isinstance(i, int) else None)
         v["ui_connected"] = self.clients > 0
         return v

@@ -18,8 +18,8 @@ pip install -e .          # or: pipx install .
 ```bash
 showme img.png dir/ "data/**/*.tif"   # open a tab (starts the server in the background if needed)
 showme dir/ -r -t "Run 42" -n "Check edges" -f bad_017.png -d minmax
-showme serve [--host H] [--port 8765] [--no-browser] [--no-persist]   # foreground server
-showme mcp                             # MCP over stdio (bridges to the server)
+showme serve [--host H] [--port 8765] [--public-url URL] [--no-browser] [--no-persist]   # foreground server
+showme mcp [--session NAME]            # MCP over stdio (bridges to the server)
 showme ls | showme close ID|all | showme stop
 ```
 
@@ -49,6 +49,7 @@ claude mcp add --transport http showme http://localhost:8765/mcp     # http (ser
 | `update_tab` | Change the title, note or display window |
 | `close_tabs` | Close tabs by id, or `"all"` |
 | `list_tabs` / `get_items` | Read tabs and items with their note threads (paginated, `flagged_only`, `noted_only`); flags you set show as `by: "user"` |
+| `get_link` | Return the URL of a tab, or of one image in it, to send to the user |
 | `get_view` | Return what the user is looking at |
 | `image_info` | Return size, dtype, bit depth and min/max/mean for files |
 
@@ -56,6 +57,21 @@ Every user reply is delivered to the agent once. Each reply looks like `{tab, i,
 
 - **Automatically:** new replies are appended, as `user_replies`, to the result of the agent's next tool call, whatever that tool is.
 - **On demand:** the agent can call `get_replies(wait=120)` to wait for the user's answer.
+
+**Tab names.** The agent can name a tab with `title`. Otherwise the tab is named after the agent session, with " 2", " 3"… added to repeats. The stdio bridge finds the session name in this order:
+
+1. `--session NAME` or `SHOWME_SESSION`.
+2. The Claude Code session title (best effort: the custom title, else the AI-generated title).
+3. The name of the working folder.
+
+Over HTTP, the server reads the name from the `X-Showme-Session` header or the `?session=` parameter of the MCP URL.
+
+**Links.** `open_tab`, `focus`, `get_view` and `list_tabs` return a `url`, and `get_link` builds one for any tab or image:
+
+- `http://localhost:8765/#/<tab>` opens the tab's grid.
+- `http://localhost:8765/#/<tab>/<index>` opens one image.
+
+The browser's address bar follows your navigation, so you can copy links too. If the UI is reached through another address, for example over SSH or another host, set it with `--public-url` or `SHOWME_URL`.
 
 The tool descriptions are kept short, so a client loads about 1k tokens.
 

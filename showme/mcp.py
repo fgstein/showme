@@ -38,13 +38,13 @@ def _obj(props: dict, required: list[str] | None = None) -> dict:
 
 
 TOOLS = [
-    ("open_tab", "Open a new tab showing images (grid if several). Returns {tab, count, flagged, missing?}.",
-     _obj({"images": _IMG, "title": {"type": "string"}, "note": {"type": "string", "description": "Shown above the images."},
+    ("open_tab", "Open a new tab showing images (grid if several). Returns {tab, title, url, count, flagged, missing?}.",
+     _obj({"images": _IMG, "title": {"type": "string", "description": "Default: the agent session name."}, "note": {"type": "string", "description": "Shown above the images."},
            "display": _DISPLAY, "lo": _NUM, "hi": _NUM, "recursive": {"type": "boolean"},
            "view": {"type": "string", "enum": ["grid", "single"]},
            "background": {"type": "boolean", "description": "Do not switch the UI to it."}}, ["images"]),
      lambda s, a: s.open_tab(a["images"], a.get("title"), a.get("note"), a.get("display"), a.get("lo"), a.get("hi"),
-                             bool(a.get("recursive")), bool(a.get("background")), a.get("view"))),
+                             bool(a.get("recursive")), bool(a.get("background")), a.get("view"), a.get("_session"))),
     ("add_images", "Append images to a tab.",
      _obj({"tab": _TAB, "images": _IMG, "recursive": {"type": "boolean"}}, ["images"]),
      lambda s, a: s.add_images(a.get("tab"), a["images"], bool(a.get("recursive")))),
@@ -60,6 +60,9 @@ TOOLS = [
                     "wait: seconds to block until one arrives (max 600).",
      _obj({"wait": {"type": "number"}}),
      None),  # async, handled below
+    ("get_link", "URL of a tab, or of one image in it, to send to the user.",
+     _obj({"tab": _TAB, "target": {"type": ["integer", "string"], "description": "Index or path (optional)."}}),
+     lambda s, a: s.link(a.get("tab"), a.get("target"))),
     ("focus", "Bring a tab to front; with target, open that image in single view.",
      _obj({"tab": _TAB, "target": {"type": ["integer", "string"], "description": "Index or path."},
            "view": {"type": "string", "enum": ["grid", "single"]}}),
@@ -108,7 +111,7 @@ def _err(id_, code: int, msg: str) -> dict:
     return {"jsonrpc": "2.0", "id": id_, "error": {"code": code, "message": msg}}
 
 
-async def handle(store: Store, msg: dict, run_sync) -> dict | None:
+async def handle(store: Store, msg: dict, run_sync, session: str | None = None) -> dict | None:
     """Handle one JSON-RPC message. `run_sync(fn, *args)` runs blocking work off the loop."""
     if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0":
         return _err(None, -32600, "invalid request")
@@ -130,7 +133,10 @@ async def handle(store: Store, msg: dict, run_sync) -> dict | None:
     if method == "tools/list":
         return _ok(id_, {"tools": tools_list()})
     if method == "tools/call":
-        name, args = params.get("name"), params.get("arguments") or {}
+        name, args = params.get("name"), dict(params.get("arguments") or {})
+        args.pop("_session", None)
+        if session:
+            args["_session"] = session
         if name not in TOOL_MAP:
             return _err(id_, -32602, f"unknown tool {name!r}")
         try:

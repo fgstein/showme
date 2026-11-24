@@ -10,7 +10,7 @@ import threading
 import time
 import webbrowser
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import anyio
 from starlette.applications import Starlette
@@ -35,6 +35,8 @@ def data_dirs() -> tuple[Path, Path]:
 def create_app(store: Store | None = None, thumb_dir: Path | None = None, open_browser: bool = False,
                url: str = "") -> Starlette:
     store = store or Store()
+    if url:
+        store.base_url = url
     thumbs = imaging.ThumbCache(thumb_dir)
     limiter = anyio.CapacityLimiter(max(2, os.cpu_count() or 2))
     thumb_limiter = anyio.CapacityLimiter(max(2, os.cpu_count() or 2))
@@ -224,10 +226,12 @@ def create_app(store: Store | None = None, thumb_dir: Path | None = None, open_b
             msg = await request.json()
         except Exception:  # noqa: BLE001
             return JSONResponse(mcp._err(None, -32700, "parse error"), status_code=400)
+        session = request.headers.get("x-showme-session") or request.query_params.get("session")
+        session = unquote(session).strip()[:80] if session else None
         if isinstance(msg, list):
-            out = [r for r in [await mcp.handle(store, m, run_sync) for m in msg] if r]
+            out = [r for r in [await mcp.handle(store, m, run_sync, session) for m in msg] if r]
         else:
-            out = await mcp.handle(store, msg, run_sync)
+            out = await mcp.handle(store, msg, run_sync, session)
         if not out:
             return Response(status_code=202)
         return JSONResponse(out)
@@ -268,12 +272,14 @@ def create_app(store: Store | None = None, thumb_dir: Path | None = None, open_b
 
 
 def serve(host: str = "127.0.0.1", port: int = DEFAULT_PORT, open_browser: bool = True,
-          persist: bool = True) -> None:
+          persist: bool = True, public_url: str | None = None) -> None:
     import uvicorn
 
     state_dir, cache_dir = data_dirs()
     store = Store(state_dir / "state.json" if persist else None)
-    url = f"http://{'localhost' if host in ('127.0.0.1', '0.0.0.0', '::') else host}:{port}/"
+    url = public_url or os.environ.get("SHOWME_URL") or \
+        f"http://{'localhost' if host in ('127.0.0.1', '0.0.0.0', '::') else host}:{port}/"
+    url = url.rstrip("/") + "/"
     app = create_app(store, cache_dir / "thumbs", open_browser, url)
     print(f"showme {__version__} — UI {url}  MCP {url}mcp", flush=True)
     uvicorn.run(app, host=host, port=port, log_level="warning", timeout_graceful_shutdown=1)
