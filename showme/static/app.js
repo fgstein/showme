@@ -20,7 +20,7 @@ async function api(method, url, body) {
 // ------------------------------------------------------------------ state
 const S = {
   tabs: [], active: null, data: new Map(), focusSeq: 0, firstMsg: true, connected: false,
-  size: store.get('size', 160), info: store.get('info', false),
+  size: store.get('size', 160), info: false,  // info panel always starts hidden
 };
 const GAP = 6, PAD = 8, CAP = 16;
 
@@ -276,7 +276,6 @@ function fillCell(el, d, p) {
   if (ln) {
     if (!nb) { nb = document.createElement('span'); nb.className = 'nbadge'; el._th.appendChild(nb); }
     nb.innerHTML = BUBBLE + it.notes.length;
-    nb.classList.toggle('pending', ln.by === 'agent');
   } else if (nb) nb.remove();
   el.classList.toggle('flagged', !!it.flag);
   el.classList.toggle('sel', p === d.pos);
@@ -615,12 +614,6 @@ function updatePixel() {
 // ------------------------------------------------------------------ note threads
 const T = { key: null, compose: false, collapsed: store.get('threadCollapsed', false), drafts: new Map() };
 
-function ago(ts) {
-  if (!ts) return '';
-  const s = Math.max(0, Date.now() / 1000 - ts);
-  return s < 60 ? 'now' : s < 3600 ? `${Math.floor(s / 60)} min` : s < 86400 ? `${Math.floor(s / 3600)} h` : new Date(ts * 1000).toLocaleDateString();
-}
-
 function renderThread() {
   const d = td(), box = $('thread'), input = $('th-input');
   const it = d && d.items && d.list.length ? d.items[d.list[d.pos]] : null;
@@ -637,17 +630,16 @@ function renderThread() {
   if (!show) return;
   box.classList.toggle('has-notes', notes.length > 0);
   box.classList.toggle('collapsed', T.collapsed && notes.length > 0 && !T.compose);
-  const pending = notes.length && notes[notes.length - 1].by === 'agent';
-  $('th-title').innerHTML = `Notes · ${notes.length}` + (pending ? ' <span class="pend">· awaiting your reply</span>' : '');
+  $('th-title').textContent = `Notes · ${notes.length}`;
   $('th-toggle').textContent = box.classList.contains('collapsed') ? '+' : '–';
-  input.placeholder = notes.length ? 'Reply… (Enter to send, Shift+Enter: newline)' : 'Note for the agent… (Enter to send)';
+  input.placeholder = 'Add a note… (Enter to save, Shift+Enter: newline)';
   const list = $('th-list');
   list.textContent = '';
   for (const n of notes) {
     const m = document.createElement('div');
-    m.className = 'msg ' + (n.by === 'user' ? 'user' : 'agent');
+    m.className = 'note ' + (n.by === 'user' ? 'user' : 'agent');
     const who = document.createElement('span'); who.className = 'who';
-    who.textContent = (n.by === 'user' ? 'You' : 'Agent') + (n.ts ? ' · ' + ago(n.ts) : '');
+    who.textContent = n.by === 'user' ? 'You' : 'Agent';
     m.append(who, document.createTextNode(n.text));
     list.appendChild(m);
   }
@@ -846,7 +838,7 @@ for (const id of ['lo', 'hi']) $(id).addEventListener('change', () => {
 });
 
 function toggleInfo() {
-  S.info = !S.info; store.set('info', S.info);
+  S.info = !S.info;
   $('info').hidden = !S.info; renderToolbar();
   requestAnimationFrame(() => { onResize(); updateInfo(); });
 }
