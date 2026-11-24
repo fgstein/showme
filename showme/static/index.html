@@ -12,7 +12,6 @@
   <header id="tabbar">
     <div id="tabs" role="tablist"></div>
     <div class="spacer"></div>
-    <span id="conn" class="dot" title="Server connection"></span>
     <button id="btn-theme" class="icon" title="Toggle light/dark theme"><svg width="13" height="13" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor"/></svg></button>
     <button id="btn-help" class="icon" title="Keyboard shortcuts (?)">?</button>
   </header>
@@ -24,7 +23,7 @@
     </div>
     <span class="sep"></span>
     <label class="grid-only" title="Thumbnail size">
-      <input id="size" type="range" min="48" max="384" step="8" value="160">
+      <input id="size" type="range" min="24" max="640" step="8" value="160">
     </label>
     <input id="filter" type="search" placeholder="Filter (/)" spellcheck="false" title="Filter by name or note">
     <button id="btn-flagged-only" class="toggle" title="Show flagged only">⚑ only</button>
@@ -65,6 +64,7 @@
         <button class="nav next" id="btn-next" title="Next (Z / →)">›</button>
         <div id="viewer-msg"></div>
       </div>
+      <button id="btn-add-note" hidden title="Add a note on this image (C)">+ Note</button>
       <div id="thread" hidden>
         <div class="th-head" id="th-head" title="Collapse / expand"><span id="th-title">Notes</span><span class="spacer"></span><button class="icon" id="th-toggle">–</button></div>
         <div id="th-list"></div>
@@ -92,9 +92,11 @@
     <div class="spacer"></div>
     <span id="st-pixel" class="mono"></span>
     <span id="st-meta" class="mono muted"></span>
+    <span id="offline" hidden>Server unreachable — retrying</span>
   </footer>
 </div>
 
+<div id="hint" hidden></div>
 <div id="help" hidden>
   <div class="help-box">
     <h3>Keyboard</h3>
@@ -104,7 +106,7 @@
       <tr><td><kbd>Enter</kbd> / <kbd>Esc</kbd></td><td>Open image / back to grid</td></tr>
       <tr><td><kbd>F</kbd> / <kbd>Shift F</kbd></td><td>Next / previous flagged</td></tr>
       <tr><td><kbd>X</kbd></td><td>Toggle flag on current image</td></tr>
-      <tr><td><kbd>C</kbd></td><td>Write a note / reply on current image</td></tr>
+      <tr><td><kbd>C</kbd></td><td>Add a note on current image</td></tr>
       <tr><td><kbd>T</kbd> / <kbd>Shift T</kbd></td><td>Next / previous image with notes</td></tr>
       <tr><td><kbd>Home</kbd> / <kbd>End</kbd></td><td>First / last</td></tr>
       <tr><td><kbd>0</kbd> / <kbd>1</kbd> / <kbd>+</kbd> <kbd>-</kbd></td><td>Fit / 1:1 / zoom</td></tr>
@@ -114,7 +116,7 @@
       <tr><td><kbd>[</kbd> / <kbd>]</kbd></td><td>Previous / next tab</td></tr>
       <tr><td><kbd>W</kbd></td><td>Close tab</td></tr>
     </table>
-    <p class="muted">Wheel: zoom · Drag: pan · Double-click: fit ↔ 1:1 · Middle-click tab: close</p>
+    <p class="muted">Click a thumbnail: open · Click outside the image: back to grid · Wheel: zoom · Drag: pan · Double-click: fit ↔ 1:1 · Middle-click tab: close</p>
   </div>
 </div>
 <script src="/static/app.js"></script>

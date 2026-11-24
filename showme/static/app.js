@@ -80,22 +80,41 @@ function recomputeList(d, keepSel) {
 }
 
 // ------------------------------------------------------------------ server events
+// Live updates: server-sent events, with a polling fallback when SSE is blocked or buffered
+// (some proxies / port forwarders do that). Either way the agent's actions show up without a refresh.
+const LIVE = { lastEvent: 0, chain: Promise.resolve(), sig: '' };
 function connect() {
   const es = new EventSource('/api/events');
-  es.onopen = () => { S.connected = true; $('conn').classList.add('ok'); $('conn').title = 'Connected'; };
-  es.onerror = () => { S.connected = false; $('conn').classList.remove('ok'); $('conn').title = 'Disconnected (retrying)'; S.reconnected = true; };
-  es.onmessage = (e) => applySnapshot(JSON.parse(e.data));
+  es.onmessage = (e) => { LIVE.lastEvent = Date.now(); setOnline(true); queueSnapshot(JSON.parse(e.data)); };
+  es.addEventListener('ping', () => { LIVE.lastEvent = Date.now(); setOnline(true); });
+  setInterval(() => { if (Date.now() - LIVE.lastEvent > 6000) refreshState(); }, 1000);
+}
+async function refreshState() {
+  try {
+    const r = await fetch('/api/state', { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.statusText);
+    setOnline(true);
+    queueSnapshot(await r.json());
+  } catch { setOnline(false); }
+}
+function setOnline(ok) { $('offline').hidden = ok; }
+function queueSnapshot(m) {
+  const sig = JSON.stringify(m);
+  if (sig === LIVE.sig) return;  // polling repeats identical states
+  LIVE.sig = sig;
+  LIVE.chain = LIVE.chain.then(() => applySnapshot(m)).catch((e) => console.error(e));
 }
 
 async function applySnapshot(m) {
+  if (S.boot !== m.boot) {  // first load or server restarted: focus counter starts over
+    if (!S.firstMsg) S.focusSeq = m.focus ? m.focus.seq - 1 : 0;
+    S.boot = m.boot;
+  }
   S.tabs = m.tabs;
   const ids = new Set(m.tabs.map((t) => t.id));
   for (const id of [...S.data.keys()]) if (!ids.has(id)) S.data.delete(id);
   let focus = null;
-  if (m.focus) {
-    if (S.reconnected && !S.firstMsg) { S.focusSeq = m.focus.seq; S.reconnected = false; }
-    else if (m.focus.seq > S.focusSeq || S.firstMsg) { S.focusSeq = m.focus.seq; focus = m.focus; }
-  }
+  if (m.focus && (m.focus.seq > S.focusSeq || S.firstMsg)) { S.focusSeq = m.focus.seq; focus = m.focus; }
   if (S.firstMsg) {
     S.firstMsg = false;
     const h = parseHash();  // a link (#/tab[/index]) wins over the server's last focus
@@ -119,7 +138,7 @@ async function applySnapshot(m) {
     renderTabs(); renderToolbar(); renderNote();
     const d = td();
     if (d && d.items) {
-      if (d.ui.view === 'single') { if (V.img && V.dispKey !== dispKey()) { drawViewer(true); updateStatus(); } }
+      if (d.ui.view === 'single') { if (V.img && V.dispKey !== dispKey()) applyDisplay(); }
       else if (G.dispKey !== dispKey()) refreshThumbs();
     }
   }
@@ -146,7 +165,7 @@ async function activate(id, opts = {}) {
 }
 
 function closeTab(id) {
-  api('DELETE', `/api/tabs/${id}`).catch((e) => console.warn(e));
+  api('DELETE', `/api/tabs/${id}`).then(refreshState, (e) => flash(e.message));
 }
 
 function renderTabs() {
@@ -225,7 +244,7 @@ const G = { cols: 1, cellW: 160, cellH: 182, rows: 0, cells: new Map(), pool: []
 
 function thumbReq() {
   const px = S.size * (window.devicePixelRatio || 1);
-  return px <= 128 ? 128 : px <= 256 ? 256 : 512;
+  return px <= 128 ? 128 : px <= 256 ? 256 : px <= 512 ? 512 : 1024;
 }
 function dispQuery(id) {
   const d = displayOf(id);
@@ -267,17 +286,39 @@ function makeCell() {
     img.classList.toggle('px', r * (window.devicePixelRatio || 1) > 1.01);
   };
   el._img.onerror = () => { if (el._img.getAttribute('src')) el._cap.textContent = '⚠ ' + el._cap.textContent; };
-  el.onclick = () => { const d = td(); if (d) { d.pos = el._pos; markSelection(); updateStatus(); updateInfo(); reportView(); } };
-  el.ondblclick = () => openSingle(el._pos);
+  el.onclick = () => openSingle(el._pos);
+  el.onmouseenter = (e) => showHint(el, e);
+  el.onmousemove = (e) => moveHint(e);
+  el.onmouseleave = hideHint;
   return el;
 }
+
+// hover hint on thumbnails
+function showHint(el, e) {
+  const d = td(); if (!d) return;
+  const it = d.items[el._i], ln = lastNote(it), h = $('hint');
+  h.textContent = '';
+  const add = (cls, text) => { const s = document.createElement('div'); s.className = cls; s.textContent = text; h.appendChild(s); return s; };
+  add('h-name', itemName(it));
+  add('h-path', `#${el._i} · ${it.path}`);
+  if (it.flag) add('h-flag', it.by === 'user' ? '⚑ flagged by you' : '⚑ flagged').style.color = flagCss(it.flag);
+  if (ln) add('h-note', `${ln.by === 'user' ? 'You' : 'Agent'}: ${ln.text}`);
+  h.hidden = false; moveHint(e);
+}
+function moveHint(e) {
+  const h = $('hint'), pad = 14;
+  let x = e.clientX + pad, y = e.clientY + pad;
+  if (x + h.offsetWidth > innerWidth - 4) x = e.clientX - h.offsetWidth - pad;
+  if (y + h.offsetHeight > innerHeight - 4) y = e.clientY - h.offsetHeight - pad;
+  h.style.transform = `translate(${x}px, ${y}px)`;
+}
+function hideHint() { $('hint').hidden = true; }
 
 function fillCell(el, d, p) {
   const i = d.list[p], it = d.items[i];
   el._pos = p; el._i = i;
   el._cap.textContent = itemName(it);
   const ln = lastNote(it);
-  el.title = `#${i}  ${it.path}${ln ? `\n${ln.by === 'user' ? 'You' : 'Agent'}: ${ln.text}` : ''}`;
   let nb = el._th.querySelector('.nbadge');
   if (ln) {
     if (!nb) { nb = document.createElement('span'); nb.className = 'nbadge'; el._th.appendChild(nb); }
@@ -381,6 +422,7 @@ function nextFlagged(dir) {
 }
 function openSingle(p) {
   const d = td(); if (!d) return;
+  hideHint();
   if (p != null) d.pos = p;
   d.ui.scrollTop = $('grid').scrollTop;
   d.ui.view = 'single'; render(); reportView();
@@ -424,6 +466,7 @@ async function toggleFlag() {
   const i = d.list[d.pos], it = d.items[i];
   try {
     await api('POST', `/api/tabs/${d.id}/flags`, it.flag ? { targets: [i], unflag: true } : { targets: [i], by: 'user' });
+    refreshState();
   } catch (e) { flash(e.message); }
 }
 
@@ -613,7 +656,15 @@ canvas.addEventListener('pointermove', (e) => {
   if (drag) { V.tx = drag.tx + e.clientX - drag.x; V.ty = drag.ty + e.clientY - drag.y; V.fit = false; drawViewer(); }
   updatePixel();
 });
-canvas.addEventListener('pointerup', () => { drag = null; canvas.classList.remove('dragging'); });
+canvas.addEventListener('pointerup', (e) => {
+  const click = drag && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4;
+  drag = null; canvas.classList.remove('dragging');
+  if (click && V.img) {  // a click outside the image goes back to the grid
+    const r = canvas.getBoundingClientRect();
+    const x = (e.clientX - r.left - V.tx) / V.scale, y = (e.clientY - r.top - V.ty) / V.scale;
+    if (x < 0 || y < 0 || x > V.img.w || y > V.img.h) setView('grid');
+  }
+});
 canvas.addEventListener('pointerleave', () => { V.mouse = null; updatePixel(); });
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
@@ -624,6 +675,8 @@ canvas.addEventListener('wheel', (e) => {
 }, { passive: false });
 canvas.addEventListener('dblclick', (e) => {
   const r = canvas.getBoundingClientRect();
+  const x = (e.clientX - r.left - V.tx) / V.scale, y = (e.clientY - r.top - V.ty) / V.scale;
+  if (!V.img || x < 0 || y < 0 || x > V.img.w || y > V.img.h) return;
   if (V.fit) oneToOne(e.clientX - r.left, e.clientY - r.top); else { fit(); drawViewer(); }
 });
 
@@ -652,6 +705,7 @@ function renderThread() {
   const notes = (it && it.notes) || [];
   const show = !!it && (notes.length > 0 || T.compose || input.value);
   box.hidden = !show;
+  $('btn-add-note').hidden = show || !it || d.ui.view !== 'single';
   if (!show) return;
   box.classList.toggle('has-notes', notes.length > 0);
   box.classList.toggle('collapsed', T.collapsed && notes.length > 0 && !T.compose);
@@ -688,7 +742,7 @@ async function sendNote() {
   input.value = ''; T.drafts.delete(T.key); input.blur();  // give the keyboard back to navigation
   renderThread(); updateStatus();
   if (G.cells.size) renderGrid();
-  try { await api('POST', `/api/tabs/${d.id}/notes`, { targets: [i], text, by: 'user' }); }
+  try { await api('POST', `/api/tabs/${d.id}/notes`, { targets: [i], text, by: 'user' }); refreshState(); }
   catch (e) { flash(e.message); }
 }
 
@@ -708,6 +762,7 @@ $('th-input').addEventListener('keydown', (e) => {
   e.stopPropagation();
 });
 $('th-input').addEventListener('input', autosize);
+$('btn-add-note').onclick = () => composeNote();
 $('th-head').onclick = () => { T.collapsed = !T.collapsed; T.compose = false; store.set('threadCollapsed', T.collapsed); renderThread(); };
 for (const ev of ['pointerdown', 'wheel', 'dblclick']) $('thread').addEventListener(ev, (e) => e.stopPropagation());
 
@@ -854,7 +909,15 @@ async function setDisplay(mode, lo, hi) {
     }
     Object.assign(body, { lo, hi });
   }
-  try { await api('PATCH', `/api/tabs/${d.id}`, body); } catch (e) { flash(e.message); }
+  const s = summary(d.id);  // apply locally right away, then persist
+  if (s) { s.display = { mode, ...(mode === 'manual' ? { lo, hi } : {}) }; applyDisplay(); }
+  try { await api('PATCH', `/api/tabs/${d.id}`, body); refreshState(); } catch (e) { flash(e.message); }
+}
+function applyDisplay() {
+  const d = td(); if (!d || !d.items) return;
+  renderToolbar();
+  if (d.ui.view === 'single') { if (V.img) { drawViewer(true); updateStatus(); updateInfo(); } }
+  else refreshThumbs();
 }
 $('display').addEventListener('change', () => { setDisplay($('display').value); $('display').blur(); });
 for (const id of ['lo', 'hi']) $(id).addEventListener('change', () => {
@@ -868,7 +931,7 @@ function toggleInfo() {
   requestAnimationFrame(() => { onResize(); updateInfo(); });
 }
 
-$('grid').addEventListener('scroll', () => requestAnimationFrame(renderGrid), { passive: true });
+$('grid').addEventListener('scroll', () => { hideHint(); requestAnimationFrame(renderGrid); }, { passive: true });
 function onResize() {
   const d = td(); if (!d || !d.items) return;
   if (d.ui.view === 'grid') { const top = Math.floor($('grid').scrollTop / (G.cellH + GAP)) * G.cols; layoutGrid(); $('grid').scrollTop = PAD + Math.floor(top / G.cols) * (G.cellH + GAP); renderGrid(); }
@@ -927,7 +990,7 @@ document.addEventListener('keydown', (e) => {
 
 // ------------------------------------------------------------------ boot
 (function boot() {
-  const theme = store.get('theme', null) || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  const theme = store.get('theme', 'dark');
   document.documentElement.dataset.theme = theme;
 
   render();

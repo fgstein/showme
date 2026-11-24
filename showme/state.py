@@ -45,6 +45,7 @@ class Store:
         self._save_handle = None
         self.on_open = None  # callback when a tab is opened (browser auto-open)
         self.base_url = "http://localhost:8765/"  # set by the server; used for links
+        self.boot = secrets.token_hex(4)  # lets the UI notice a server restart
         self.inbox: list[dict] = []  # user notes not yet delivered to the agent
         self._inbox_event: asyncio.Event | None = None
         self._load()
@@ -133,7 +134,7 @@ class Store:
         }
 
     def snapshot(self, with_focus: bool = False) -> dict:
-        d = {"tabs": [self.summary(self.tabs[i]) for i in self.order], "active": self.active,
+        d = {"boot": self.boot, "tabs": [self.summary(self.tabs[i]) for i in self.order], "active": self.active,
              "pending_replies": len(self.inbox)}
         if with_focus and self.focus:
             d["focus"] = self.focus

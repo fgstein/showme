@@ -152,6 +152,10 @@ def create_app(store: Store | None = None, thumb_dir: Path | None = None, open_b
         return JSONResponse(store.get_view())
 
     @api
+    async def state(request: Request):  # polling fallback when SSE is blocked/buffered by a proxy
+        return JSONResponse(store.snapshot(with_focus=True), headers={"Cache-Control": "no-store"})
+
+    @api
     async def close_all(request: Request):
         return JSONResponse(store.close("all"))
 
@@ -203,12 +207,13 @@ def create_app(store: Store | None = None, thumb_dir: Path | None = None, open_b
 
         async def gen():
             try:
+                yield ":" + " " * 2048 + "\n\n"  # padding: defeats proxies that buffer small responses
                 while True:
                     try:
-                        msg = await asyncio.wait_for(q.get(), timeout=15)
+                        msg = await asyncio.wait_for(q.get(), timeout=4)
                         yield f"data: {json.dumps(msg, separators=(',', ':'))}\n\n"
                     except asyncio.TimeoutError:
-                        yield ": ping\n\n"
+                        yield "event: ping\ndata: 1\n\n"
             finally:
                 store.unsubscribe(q)
 
@@ -248,6 +253,7 @@ def create_app(store: Store | None = None, thumb_dir: Path | None = None, open_b
         Route("/api/focus", focus, methods=["POST"]),
         Route("/api/view", view, methods=["GET", "POST"]),
         Route("/api/events", events),
+        Route("/api/state", state),
         Route("/mcp", mcp_endpoint, methods=["GET", "POST", "DELETE"]),
         Mount("/static", StaticFiles(directory=STATIC)),
     ]
