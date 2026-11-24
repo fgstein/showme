@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>showme</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='1' width='6' height='6' rx='1.5' fill='%230a84ff'/%3E%3Crect x='9' y='1' width='6' height='6' rx='1.5' fill='%238e8e93'/%3E%3Crect x='1' y='9' width='6' height='6' rx='1.5' fill='%238e8e93'/%3E%3Crect x='9' y='9' width='6' height='6' rx='1.5' fill='%23ff9f0a'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app">
+  <header id="tabbar">
+    <div id="tabs" role="tablist"></div>
+    <div class="spacer"></div>
+    <span id="conn" class="dot" title="Server connection"></span>
+    <button id="btn-theme" class="icon" title="Toggle light/dark theme"><svg width="13" height="13" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor"/></svg></button>
+    <button id="btn-help" class="icon" title="Keyboard shortcuts (?)">?</button>
+  </header>
+
+  <div id="toolbar">
+    <div class="seg" id="seg-view">
+      <button data-view="grid" title="Grid (Esc)">Grid</button>
+      <button data-view="single" title="Single image (Enter)">Image</button>
+    </div>
+    <span class="sep"></span>
+    <label class="grid-only" title="Thumbnail size">
+      <input id="size" type="range" min="48" max="384" step="8" value="160">
+    </label>
+    <input id="filter" type="search" placeholder="Filter (/)" spellcheck="false" title="Filter by name or note">
+    <button id="btn-flagged-only" class="toggle" title="Show flagged only">⚑ only</button>
+    <span class="sep"></span>
+    <div class="group flag-nav" title="Flagged images">
+      <button id="btn-prev-flag" title="Previous flagged (Shift+F)">‹</button>
+      <span id="flag-count">⚑ 0</span>
+      <button id="btn-next-flag" title="Next flagged (F)">›</button>
+    </div>
+    <span class="sep"></span>
+    <select id="display" title="Display window (N toggles min/max)">
+      <option value="native">Native range</option>
+      <option value="full">Full dtype range</option>
+      <option value="minmax">Min/Max per image</option>
+      <option value="manual">Manual…</option>
+    </select>
+    <span id="manual" hidden>
+      <input id="lo" type="number" step="any" title="Low (black)">
+      <input id="hi" type="number" step="any" title="High (white)">
+    </span>
+    <div class="spacer"></div>
+    <div class="group single-only">
+      <button id="btn-fit" title="Fit (0)">Fit</button>
+      <button id="btn-one" title="Actual pixels (1)">1:1</button>
+      <span id="zoom" class="mono">100%</span>
+    </div>
+    <button id="btn-info" class="toggle" title="Info panel (I)">Info</button>
+  </div>
+
+  <div id="notebar" hidden><span id="note"></span><button class="icon" id="btn-note-close" title="Hide">×</button></div>
+
+  <main id="main">
+    <div id="stage">
+      <div id="grid" tabindex="-1"><div id="grid-inner"></div></div>
+      <div id="viewer" hidden>
+        <canvas id="canvas"></canvas>
+        <button class="nav prev" id="btn-prev" title="Previous (A / ←)">‹</button>
+        <button class="nav next" id="btn-next" title="Next (Z / →)">›</button>
+        <div id="viewer-msg"></div>
+      </div>
+      <div id="empty" hidden>
+        <div class="empty-box">
+          <div class="empty-title">No images</div>
+          <div>Run <code>showme image.png dir/ "*.tif"</code> or let your agent call <code>open_tab</code> via MCP.</div>
+        </div>
+      </div>
+    </div>
+    <aside id="info" hidden>
+      <section><h4>Image</h4><dl id="info-img"></dl></section>
+      <section><h4>Histogram</h4><canvas id="hist" width="232" height="72"></canvas><div id="hist-range" class="mono muted"></div></section>
+      <section><h4>Tab</h4><dl id="info-tab"></dl></section>
+    </aside>
+  </main>
+
+  <footer id="status">
+    <span id="st-pos" class="mono"></span>
+    <span id="st-name" class="ellipsis"></span>
+    <span id="st-flag" class="ellipsis"></span>
+    <div class="spacer"></div>
+    <span id="st-pixel" class="mono"></span>
+    <span id="st-meta" class="mono muted"></span>
+  </footer>
+</div>
+
+<div id="help" hidden>
+  <div class="help-box">
+    <h3>Keyboard</h3>
+    <table>
+      <tr><td><kbd>A</kbd> <kbd>←</kbd> / <kbd>Z</kbd> <kbd>→</kbd></td><td>Previous / next image</td></tr>
+      <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Move by row (grid)</td></tr>
+      <tr><td><kbd>Enter</kbd> / <kbd>Esc</kbd></td><td>Open image / back to grid</td></tr>
+      <tr><td><kbd>F</kbd> / <kbd>Shift F</kbd></td><td>Next / previous flagged</td></tr>
+      <tr><td><kbd>X</kbd></td><td>Toggle flag on current image</td></tr>
+      <tr><td><kbd>Home</kbd> / <kbd>End</kbd></td><td>First / last</td></tr>
+      <tr><td><kbd>0</kbd> / <kbd>1</kbd> / <kbd>+</kbd> <kbd>-</kbd></td><td>Fit / 1:1 / zoom</td></tr>
+      <tr><td><kbd>N</kbd></td><td>Toggle min/max normalization</td></tr>
+      <tr><td><kbd>I</kbd></td><td>Info panel</td></tr>
+      <tr><td><kbd>/</kbd></td><td>Filter</td></tr>
+      <tr><td><kbd>[</kbd> / <kbd>]</kbd></td><td>Previous / next tab</td></tr>
+      <tr><td><kbd>W</kbd></td><td>Close tab</td></tr>
+    </table>
+    <p class="muted">Wheel: zoom · Drag: pan · Double-click: fit ↔ 1:1 · Middle-click tab: close</p>
+  </div>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

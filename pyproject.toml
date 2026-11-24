@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "showme"
+version = "0.1.0"
+description = "Raw image viewer for humans, driven by agents (CLI + MCP)."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24",
+  "pillow>=10",
+  "tifffile>=2023.1",
+  "imagecodecs>=2023.1",
+  "starlette>=0.37",
+  "uvicorn>=0.29",
+]
+
+[project.optional-dependencies]
+test = ["pytest", "httpx"]
+
+[project.scripts]
+showme = "showme.cli:main"
+
+[tool.setuptools]
+packages = ["showme"]
+
+[tool.setuptools.package-data]
+showme = ["static/*"]
