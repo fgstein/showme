@@ -210,18 +210,13 @@ class Store:
 
     # ------------------------------------------------------------------ operations
     def open_tab(self, images, title: str | None = None, note: str | None = None, display: str | None = None,
-                 lo=None, hi=None, recursive: bool = False, background: bool = False, view: str | None = None,
-                 session: str | None = None) -> dict:
+                 lo=None, hi=None, recursive: bool = False, background: bool = False, view: str | None = None) -> dict:
         items = self._items(images, recursive)
         tid = secrets.token_hex(3)
         while tid in self.tabs:
             tid = secrets.token_hex(3)
         if not title:
-            title = session or (os.path.basename(items[0]["path"]) if len(items) == 1 else f"{len(items)} images")
-            taken = {self.tabs[i]["title"] for i in self.order}
-            base, n = title, 2
-            while title in taken:  # "session", "session 2", ...
-                title, n = f"{base} {n}", n + 1
+            title = os.path.basename(items[0]["path"]) if len(items) == 1 else f"{len(items)} images"
         t = {"id": tid, "title": str(title), "note": note or "", "items": items, "version": 1,
              "display": self._display(display, lo, hi), "created": time.time()}
         self.tabs[tid] = t

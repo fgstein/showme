@@ -19,7 +19,7 @@ pip install -e .          # or: pipx install .
 showme img.png dir/ "data/**/*.tif"   # open a tab (starts the server in the background if needed)
 showme dir/ -r -t "Run 42" -n "Check edges" -f bad_017.png -d minmax
 showme serve [--host H] [--port 8765] [--public-url URL] [--no-browser] [--no-persist]   # foreground server
-showme mcp [--session NAME]            # MCP over stdio (bridges to the server)
+showme mcp                             # MCP over stdio (bridges to the server)
 showme ls | showme close ID|all | showme stop
 ```
 
@@ -58,13 +58,7 @@ Every user reply is delivered to the agent once. Each reply looks like `{tab, i,
 - **Automatically:** new replies are appended, as `user_replies`, to the result of the agent's next tool call, whatever that tool is.
 - **On demand:** the agent can call `get_replies(wait=120)` to wait for the user's answer.
 
-**Tab names.** The agent can name a tab with `title`. Otherwise the tab is named after the agent session, with " 2", " 3"… added to repeats. The stdio bridge finds the session name in this order:
-
-1. `--session NAME` or `SHOWME_SESSION`.
-2. The Claude Code session title (best effort: the custom title, else the AI-generated title).
-3. The name of the working folder.
-
-Over HTTP, the server reads the name from the `X-Showme-Session` header or the `?session=` parameter of the MCP URL.
+**Tab names.** The agent names a tab with `title`. Without one, the tab is named after the file, or "N images".
 
 **Links.** `open_tab`, `focus`, `get_view` and `list_tabs` return a `url`, and `get_link` builds one for any tab or image:
 

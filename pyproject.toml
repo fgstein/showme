@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "showme"
-version = "0.1.0"
+version = "0.2.0"
 description = "Raw image viewer for humans, driven by agents (CLI + MCP)."
 readme = "README.md"
 requires-python = ">=3.10"

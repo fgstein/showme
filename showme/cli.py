@@ -8,7 +8,6 @@ import subprocess
 import sys
 import time
 import urllib.error
-import urllib.parse
 import urllib.request
 
 from . import __version__
@@ -117,17 +116,8 @@ def cmd_mcp(argv: list[str]) -> None:
     """Forward newline-delimited JSON-RPC from stdin to the HTTP MCP endpoint."""
     p = argparse.ArgumentParser(prog="showme mcp")
     p.add_argument("--port", type=int, default=DEFAULT_PORT)
-    p.add_argument("--session", help="name used for tabs the agent does not title (default: agent session name)")
     a = p.parse_args(argv)
     started = False
-    sess_cache = [0.0, ""]
-
-    def session_name() -> str:
-        if a.session or os.environ.get("SHOWME_SESSION"):
-            return a.session or os.environ["SHOWME_SESSION"]
-        if time.time() - sess_cache[0] > 30:  # the session may be renamed while running
-            sess_cache[:] = [time.time(), claude_session_title() or os.path.basename(os.getcwd()) or "agent"]
-        return sess_cache[1]
 
     for line in sys.stdin:
         line = line.strip()
@@ -140,8 +130,7 @@ def cmd_mcp(argv: list[str]) -> None:
             try:
                 req = urllib.request.Request(f"http://127.0.0.1:{a.port}/mcp", line.encode(), method="POST",
                                              headers={"Content-Type": "application/json",
-                                                      "Accept": "application/json, text/event-stream",
-                                                      "X-Showme-Session": urllib.parse.quote(session_name())})
+                                                      "Accept": "application/json, text/event-stream"})
                 with urllib.request.urlopen(req, timeout=300) as resp:
                     out = resp.read().decode()
                 break
@@ -160,34 +149,6 @@ def cmd_mcp(argv: list[str]) -> None:
         if out.strip():
             sys.stdout.write(out.strip() + "\n")
             sys.stdout.flush()
-
-
-def claude_session_title() -> str | None:
-    """Best effort: title of the Claude Code session that launched this bridge (custom title, else AI title)."""
-    sid = os.environ.get("CLAUDE_CODE_SESSION_ID") or os.environ.get("CLAUDE_SESSION_ID")
-    if not sid:
-        return None
-    import glob
-
-    files = glob.glob(os.path.expanduser(f"~/.claude/projects/*/{glob.escape(sid)}.jsonl"))
-    if not files:
-        return None
-    titles: dict[str, str] = {}
-    try:
-        with open(files[0], encoding="utf-8", errors="replace") as f:
-            for line in f:
-                if '"customTitle"' not in line and '"aiTitle"' not in line and '"summary"' not in line[:200]:
-                    continue
-                try:
-                    d = json.loads(line)
-                except ValueError:
-                    continue
-                for k in ("customTitle", "aiTitle", "summary"):
-                    if isinstance(d.get(k), str) and d[k].strip():
-                        titles[k] = d[k].strip()
-    except OSError:
-        return None
-    return next((titles[k] for k in ("customTitle", "aiTitle", "summary") if k in titles), None)
 
 
 def main(argv: list[str] | None = None) -> None:

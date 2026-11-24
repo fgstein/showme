@@ -120,21 +120,9 @@ def test_notes_and_replies(imgs):
     assert asyncio.run(waiter())[0]["text"] == "late reply"
 
 
-def test_session_title_and_links(imgs):
+def test_links(imgs):
     s = Store()
     s.base_url = "http://host:1/"
-
-    async def run_sync(fn, *a):
-        return fn(*a)
-
-    def call(name, args, session=None):
-        r = asyncio.run(mcp.handle(s, {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-                                       "params": {"name": name, "arguments": args}}, run_sync, session))
-        return json.loads(r["result"]["content"][0]["text"])
-
-    a = call("open_tab", {"images": [str(imgs)]}, session="My session")
-    b = call("open_tab", {"images": [str(imgs)]}, session="My session")
-    c = call("open_tab", {"images": [str(imgs)], "title": "Named"}, session="My session")
-    assert (a["title"], b["title"], c["title"]) == ("My session", "My session 2", "Named")
-    assert a["url"] == f"http://host:1/#/{a['tab']}"
-    assert call("get_link", {"tab": a["tab"], "target": "b8.png"})["url"] == f"http://host:1/#/{a['tab']}/1"
+    r = s.open_tab([str(imgs)], title="Named")
+    assert r["title"] == "Named" and r["url"] == f"http://host:1/#/{r['tab']}"
+    assert s.link(r["tab"], "b8.png")["url"] == f"http://host:1/#/{r['tab']}/1"
