@@ -1,20 +1,28 @@
+/* "Mono" art direction: zero-hue UI, white accent; only flags and notes carry color. */
 :root {
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", system-ui, sans-serif;
   --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
-  --ok: #30d158; --note-bg: var(--accent-soft); --note-text: var(--text);
-  --flag-default: #ff9f0a; --flag-user: #bf5af2; --flag-red: #ff453a; --flag-orange: #ff9f0a; --flag-yellow: #ffd60a;
-  --flag-green: #30d158; --flag-blue: #0a84ff; --flag-purple: #bf5af2; --flag-pink: #ff375f; --flag-cyan: #64d2ff;
-  --bg: #1c1c1e; --panel: #252527; --panel-2: #2c2c2e; --border: #38383a; --text: #e5e5e7;
-  --muted: #8e8e93; --hover: rgba(255,255,255,.07); --active: rgba(255,255,255,.12);
-  --accent: #0a84ff; --accent-soft: rgba(10,132,255,.22); --stage: #141415; --cell: #232325;
-  --check-a: #2a2a2c; --check-b: #222224; --danger: #ff453a;
+  --bg: #141414; --panel: #181818; --panel-2: #222222; --border: #2a2a2a; --text: #e8e8e8; --muted: #777777;
+  --hover: rgba(255,255,255,.05); --active: rgba(255,255,255,.1);
+  --accent: #f2f2f2; --accent-soft: rgba(255,255,255,.08); --stage: #0e0e0e; --cell: #181818;
+  --check-a: #222; --check-b: #1a1a1a; --ok: #9a9a9a; --danger: #ff4d4d;
+  --note-bg: #1c1c1c; --note-text: #bdbdbd; --shadow: 0 10px 30px rgba(0,0,0,.5);
+  --flag-default: #ff4d4d; --flag-user: #4da3ff; --flag-red: #ff4d4d; --flag-orange: #ff8a3d; --flag-yellow: #e0c341;
+  --flag-green: #3ecf7a; --flag-blue: #4da3ff; --flag-purple: #a98bff; --flag-pink: #ff6fae; --flag-cyan: #3fc9d9;
+  --hist: #9a9a9a; --hist-r: #ff5c5c; --hist-g: #3ecf7a; --hist-b: #4da3ff;
+  --msg-agent: #202020; --msg-user: #1b2a3d; --pending: #4da3ff;
   color-scheme: dark;
 }
 :root[data-theme="light"] {
-  --bg: #f5f5f7; --panel: #ececee; --panel-2: #e3e3e6; --border: #d1d1d6; --text: #1d1d1f;
-  --muted: #6e6e73; --hover: rgba(0,0,0,.05); --active: rgba(0,0,0,.09);
-  --accent: #007aff; --accent-soft: rgba(0,122,255,.16); --stage: #e9e9ec; --cell: #f7f7f9;
-  --check-a: #e4e4e7; --check-b: #f4f4f6; --danger: #ff3b30;
+  --bg: #f4f4f4; --panel: #ececec; --panel-2: #e2e2e2; --border: #d4d4d4; --text: #1a1a1a; --muted: #777777;
+  --hover: rgba(0,0,0,.05); --active: rgba(0,0,0,.09);
+  --accent: #1a1a1a; --accent-soft: rgba(0,0,0,.07); --stage: #e6e6e6; --cell: #f7f7f7;
+  --check-a: #dedede; --check-b: #f0f0f0; --ok: #777; --danger: #e5332a;
+  --note-bg: #eaeaea; --note-text: #444; --shadow: 0 10px 30px rgba(0,0,0,.15);
+  --flag-default: #e5332a; --flag-user: #1f7ae0; --flag-red: #e5332a; --flag-orange: #e86a1c; --flag-yellow: #b8960c;
+  --flag-green: #1f9d55; --flag-blue: #1f7ae0; --flag-purple: #7a5af0; --flag-pink: #e0457b; --flag-cyan: #11a0b3;
+  --hist: #888; --hist-r: #e5332a; --hist-g: #1f9d55; --hist-b: #1f7ae0;
+  --msg-agent: #ececec; --msg-user: #dde9f7; --pending: #1f7ae0;
   color-scheme: light;
 }
 * { box-sizing: border-box; }
@@ -143,3 +151,37 @@ kbd { font: 11px ui-monospace, Menlo, monospace; background: var(--bg); border: 
 ::-webkit-scrollbar-track { background: transparent; }
 
 .no-tabs { color: var(--muted); padding: 0 8px; font-style: italic; }
+
+/* Mono shapes */
+.tab.active { box-shadow: none; background: var(--panel-2); }
+.cell.sel { box-shadow: 0 0 0 1.5px var(--accent); background: var(--panel-2); }
+#toolbar button.toggle.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+#notebar { border-left: 2px solid var(--muted); }
+
+/* note badge on thumbnails */
+.cell .nbadge { position: absolute; right: 4px; bottom: 4px; display: flex; align-items: center; gap: 3px; height: 16px;
+  padding: 0 5px; border-radius: 8px; background: rgba(0,0,0,.65); color: #ddd; font-size: 10px; font-variant-numeric: tabular-nums; }
+.cell .nbadge.pending { background: var(--pending); color: #fff; }
+.cell .nbadge svg { width: 10px; height: 10px; }
+
+/* note thread */
+#thread { position: absolute; right: 12px; bottom: 12px; width: 340px; max-width: calc(100% - 24px); max-height: 60%;
+  display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: var(--shadow); z-index: 3; }
+#thread.collapsed #th-list, #thread.collapsed #th-input { display: none; }
+.th-head { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 4px 0 10px; border-bottom: 1px solid var(--border);
+  color: var(--muted); font-size: 11px; cursor: default; user-select: none; }
+#thread.collapsed .th-head { border-bottom: 0; }
+.th-head .pend { color: var(--pending); }
+#th-list { overflow-y: auto; padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; }
+.msg { padding: 5px 8px; border-radius: 6px; background: var(--msg-agent); white-space: pre-wrap; overflow-wrap: anywhere; max-width: 92%; }
+.msg.user { background: var(--msg-user); align-self: flex-end; }
+.msg .who { display: block; font-size: 10px; color: var(--muted); margin-bottom: 1px; }
+#th-input { margin: 0 8px 8px; resize: none; min-height: 28px; max-height: 120px; padding: 5px 8px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; outline: none; }
+#th-input:focus { border-color: var(--muted); }
+#thread:not(.has-notes) .th-head { display: none; }
+#thread:not(.has-notes) #th-input { margin-top: 8px; }
+#st-note { color: var(--muted); }
+.cell.flagged { box-shadow: 0 0 0 3px var(--fc); background: var(--cell); }
+.cell.flagged.sel { box-shadow: 0 0 0 3px var(--fc), 0 0 0 5px var(--accent); }

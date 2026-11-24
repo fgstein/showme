@@ -132,6 +132,12 @@ def create_app(store: Store | None = None, thumb_dir: Path | None = None, open_b
                                        bool(d.get("unflag")), d.get("by", "agent")))
 
     @api
+    async def tab_notes(request: Request):
+        d = await body(request)
+        return JSONResponse(store.note(request.path_params["tab"], d.get("targets"), d.get("text"),
+                                       d.get("by", "user")))
+
+    @api
     async def focus(request: Request):
         d = await body(request)
         return JSONResponse(store.set_focus(d.get("tab"), d.get("target"), d.get("view")))
@@ -241,6 +247,7 @@ def create_app(store: Store | None = None, thumb_dir: Path | None = None, open_b
         Route("/api/tabs/{tab}", tab, methods=["GET", "PATCH", "DELETE"]),
         Route("/api/tabs/{tab}/items", tab_items, methods=["POST"]),
         Route("/api/tabs/{tab}/flags", tab_flags, methods=["POST"]),
+        Route("/api/tabs/{tab}/notes", tab_notes, methods=["POST"]),
         Route("/api/tabs/{tab}/thumb/{i:int}", thumb),
         Route("/api/tabs/{tab}/raw/{i:int}", raw),
         Route("/api/focus", focus, methods=["POST"]),

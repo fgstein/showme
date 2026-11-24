@@ -28,6 +28,9 @@ function summary(id) { return S.tabs.find((t) => t.id === id); }
 function td() { return S.active ? S.data.get(S.active) : null; }
 function basename(p) { return p.slice(p.lastIndexOf('/') + 1); }
 function flagCss(f) { return f && f[0] === '#' ? f : `var(--flag-${f || 'default'})`; }
+function notesText(it) { return (it.notes || []).map((n) => n.text).join('\n'); }
+function lastNote(it) { const n = it.notes; return n && n.length ? n[n.length - 1] : null; }
+const BUBBLE = '<svg viewBox="0 0 16 16"><path fill="currentColor" d="M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5v6a1.5 1.5 0 0 1-1.5 1.5H7l-3 3v-3h-.5A1.5 1.5 0 0 1 2 9.5z"/></svg>';
 function itemName(it) { return it.label || basename(it.path); }
 function displayOf(id) { return (summary(id) || {}).display || { mode: 'native' }; }
 
@@ -67,7 +70,7 @@ function recomputeList(d, keepSel) {
       const it = items[i];
       if (fo && !it.flag) continue;
       if (q && !(it.path.toLowerCase().includes(q) || (it.label || '').toLowerCase().includes(q)
-        || (it.note || '').toLowerCase().includes(q))) continue;
+        || notesText(it).toLowerCase().includes(q))) continue;
       out.push(i);
     }
     d.list = Int32Array.from(out);
@@ -267,7 +270,14 @@ function fillCell(el, d, p) {
   const i = d.list[p], it = d.items[i];
   el._pos = p; el._i = i;
   el._cap.textContent = itemName(it);
-  el.title = `#${i}  ${it.path}${it.note ? '\n⚑ ' + it.note : ''}`;
+  const ln = lastNote(it);
+  el.title = `#${i}  ${it.path}${ln ? `\n${ln.by === 'user' ? 'You' : 'Agent'}: ${ln.text}` : ''}`;
+  let nb = el._th.querySelector('.nbadge');
+  if (ln) {
+    if (!nb) { nb = document.createElement('span'); nb.className = 'nbadge'; el._th.appendChild(nb); }
+    nb.innerHTML = BUBBLE + it.notes.length;
+    nb.classList.toggle('pending', ln.by === 'agent');
+  } else if (nb) nb.remove();
   el.classList.toggle('flagged', !!it.flag);
   el.classList.toggle('sel', p === d.pos);
   let badge = el._th.querySelector('.fbadge');
@@ -602,18 +612,103 @@ function updatePixel() {
   el.textContent = `x ${x}  y ${y}  ${px.length === 1 ? px[0] : '(' + px.join(', ') + ')'}`;
 }
 
+// ------------------------------------------------------------------ note threads
+const T = { key: null, compose: false, collapsed: store.get('threadCollapsed', false), drafts: new Map() };
+
+function ago(ts) {
+  if (!ts) return '';
+  const s = Math.max(0, Date.now() / 1000 - ts);
+  return s < 60 ? 'now' : s < 3600 ? `${Math.floor(s / 60)} min` : s < 86400 ? `${Math.floor(s / 3600)} h` : new Date(ts * 1000).toLocaleDateString();
+}
+
+function renderThread() {
+  const d = td(), box = $('thread'), input = $('th-input');
+  const it = d && d.items && d.list.length ? d.items[d.list[d.pos]] : null;
+  const key = it ? `${d.id}:${d.list[d.pos]}` : null;
+  if (key !== T.key) {  // item changed: stash draft, restore the other one
+    if (T.key) T.drafts.set(T.key, input.value);
+    input.value = (key && T.drafts.get(key)) || '';
+    if (T.key) T.compose = false;
+    T.key = key;
+  }
+  const notes = (it && it.notes) || [];
+  const show = !!it && (notes.length > 0 || T.compose || input.value);
+  box.hidden = !show;
+  if (!show) return;
+  box.classList.toggle('has-notes', notes.length > 0);
+  box.classList.toggle('collapsed', T.collapsed && notes.length > 0 && !T.compose);
+  const pending = notes.length && notes[notes.length - 1].by === 'agent';
+  $('th-title').innerHTML = `Notes · ${notes.length}` + (pending ? ' <span class="pend">· awaiting your reply</span>' : '');
+  $('th-toggle').textContent = box.classList.contains('collapsed') ? '+' : '–';
+  input.placeholder = notes.length ? 'Reply… (Enter to send, Shift+Enter: newline)' : 'Note for the agent… (Enter to send)';
+  const list = $('th-list');
+  list.textContent = '';
+  for (const n of notes) {
+    const m = document.createElement('div');
+    m.className = 'msg ' + (n.by === 'user' ? 'user' : 'agent');
+    const who = document.createElement('span'); who.className = 'who';
+    who.textContent = (n.by === 'user' ? 'You' : 'Agent') + (n.ts ? ' · ' + ago(n.ts) : '');
+    m.append(who, document.createTextNode(n.text));
+    list.appendChild(m);
+  }
+  list.scrollTop = list.scrollHeight;
+  autosize();
+}
+function autosize() { const i = $('th-input'); i.style.height = 'auto'; i.style.height = Math.min(120, i.scrollHeight + 2) + 'px'; }
+
+function composeNote() {
+  const d = td(); if (!d || !d.list.length) return;
+  T.compose = true; T.collapsed = false; store.set('threadCollapsed', false);
+  renderThread();
+  $('th-input').focus();
+}
+
+async function sendNote() {
+  const d = td(), input = $('th-input'), text = input.value.trim();
+  if (!d || !text) return;
+  const i = d.list[d.pos], it = d.items[i];
+  (it.notes = it.notes || []).push({ by: 'user', text, ts: Date.now() / 1000 });  // optimistic
+  input.value = ''; T.drafts.delete(T.key); input.blur();  // give the keyboard back to navigation
+  renderThread(); updateStatus();
+  if (G.cells.size) renderGrid();
+  try { await api('POST', `/api/tabs/${d.id}/notes`, { targets: [i], text, by: 'user' }); }
+  catch (e) { flash(e.message); }
+}
+
+function nextNoted(dir) {
+  const d = td(); if (!d || !d.list.length) return;
+  const n = d.list.length;
+  for (let k = 1; k <= n; k++) {
+    const p = ((d.pos + dir * k) % n + n) % n;
+    if ((d.items[d.list[p]].notes || []).length) { goTo(p, true); return; }
+  }
+  flash('No image with notes');
+}
+
+$('th-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendNote(); }
+  else if (e.key === 'Escape') { e.preventDefault(); $('th-input').blur(); if (!$('th-input').value) { T.compose = false; renderThread(); } }
+  e.stopPropagation();
+});
+$('th-input').addEventListener('input', autosize);
+$('th-head').onclick = () => { T.collapsed = !T.collapsed; T.compose = false; store.set('threadCollapsed', T.collapsed); renderThread(); };
+for (const ev of ['pointerdown', 'wheel', 'dblclick']) $('thread').addEventListener(ev, (e) => e.stopPropagation());
+
 // ------------------------------------------------------------------ status + info
 function updateStatus() {
   const d = td();
-  if (!d || !d.list.length) { $('st-pos').textContent = ''; $('st-name').textContent = ''; $('st-flag').textContent = ''; $('st-meta').textContent = ''; return; }
+  renderThread();
+  if (!d || !d.list.length) { $('st-pos').textContent = ''; $('st-name').textContent = ''; $('st-flag').textContent = ''; $('st-note').textContent = ''; $('st-meta').textContent = ''; return; }
   const i = d.list[d.pos], it = d.items[i];
   const total = d.items.length, n = d.list.length;
   $('st-pos').textContent = `${(d.pos + 1).toLocaleString()} / ${n.toLocaleString()}${n !== total ? ` (of ${total.toLocaleString()})` : ''}`;
   $('st-name').textContent = it.path;
   $('st-name').title = it.path;
   const f = $('st-flag');
-  f.textContent = it.flag ? `⚑ ${it.note || (it.by === 'user' ? 'flagged by you' : 'flagged')}` : '';
-  f.title = it.note || '';
+  f.textContent = it.flag ? (it.by === 'user' ? '⚑ flagged by you' : '⚑ flagged') : '';
+  const ln = lastNote(it);
+  $('st-note').textContent = ln ? `${ln.by === 'user' ? 'You' : 'Agent'}: ${ln.text.split('\n')[0]}` : '';
+  $('st-note').title = ln ? ln.text : '';
   if (it.flag) f.style.setProperty('--fc', flagCss(it.flag));
   const img = d.ui.view === 'single' && V.img && V.key === `${d.id}:${i}` ? V.img : null;
   if (img) {
@@ -643,7 +738,7 @@ function updateInfo() {
   const win = img ? windowOf(img) : null;
   dl($('info-img'), [
     ['Name', itemName(it)], ['Index', i], ['Path', it.path],
-    ['Flag', it.flag ? (it.note || '✓') + (it.by === 'user' ? ' (you)' : '') : ''],
+    ['Flag', it.flag ? (it.by === 'user' ? '✓ (you)' : '✓') : ''], ['Notes', it.notes ? it.notes.length : ''],
     ['Size', m && `${m.width} × ${m.height}`], ['Channels', m && m.channels], ['Type', m && m.dtype],
     ['Bits', m && m.bits], ['Min', m && fmt(m.min)], ['Max', m && fmt(m.max)], ['Mean', m && fmt(m.mean)],
     ['Window', win && `${fmt(win[0])} .. ${fmt(win[1])}`],
@@ -790,6 +885,9 @@ document.addEventListener('keydown', (e) => {
     case 'f': nextFlagged(1); break;
     case 'F': nextFlagged(-1); break;
     case 'x': case 'X': toggleFlag(); break;
+    case 'c': case 'C': composeNote(); break;
+    case 't': nextNoted(1); break;
+    case 'T': nextNoted(-1); break;
     case '0': if (single) { fit(); drawViewer(); } break;
     case '1': if (single) oneToOne(...(V.mouse || [])); break;
     case '+': case '=': if (single) zoomAt(1.25, ...(V.mouse || [])); break;
@@ -814,8 +912,7 @@ document.addEventListener('keydown', (e) => {
 (function boot() {
   const theme = store.get('theme', null) || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
   document.documentElement.dataset.theme = theme;
-  const da = new URLSearchParams(location.search).get('da') || store.get('da', null);
-  if (da) { document.documentElement.dataset.da = da; store.set('da', da); }
+
   render();
   connect();
 })();

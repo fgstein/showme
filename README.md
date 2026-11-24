@@ -4,7 +4,8 @@ A raw image viewer for humans, driven by agents. A local web app with tabs, a vi
 
 - Pixels are shown **raw**. The only display step is a linear window (`lo..hi → 0..255`), and you can see it in the status bar.
 - Supports PNG, JPEG, TIFF, BMP, GIF, WebP, JPEG 2000, JPEG XL, AVIF, PNM, TGA, EXR, QOI and `.npy`, at 8/12/16-bit and float.
-- **Flags** mark images that need attention: a colored border and an optional note, with jump-to-next-flagged.
+- **Flags** mark images that need attention: a colored border, with jump-to-next-flagged.
+- **Notes** are threads attached to images. The agent writes a note, the user replies in the UI, and the reply goes back to the agent with the image reference.
 
 ## Install
 
@@ -41,13 +42,20 @@ claude mcp add --transport http showme http://localhost:8765/mcp     # http (ser
 |---|---|
 | `open_tab` | Show images (paths, dirs, globs, or `{path,label,flag,note}`) in a new tab |
 | `add_images` | Append images to a tab |
-| `flag` | Flag or unflag images (color + note). Targets are indices, paths, basenames or globs |
+| `flag` | Flag or unflag images (color, optional note). Targets are indices, paths, basenames or globs |
+| `note` | Attach a note to images. The user can reply |
+| `get_replies` | Get the user's new notes and replies (`wait` blocks for up to N seconds) |
 | `focus` | Bring a tab to the front, optionally opening one image |
 | `update_tab` | Change the title, note or display window |
 | `close_tabs` | Close tabs by id, or `"all"` |
-| `list_tabs` / `get_items` | Read tabs and items (paginated, `flagged_only`); flags you set show as `by: "user"` |
+| `list_tabs` / `get_items` | Read tabs and items with their note threads (paginated, `flagged_only`, `noted_only`); flags you set show as `by: "user"` |
 | `get_view` | Return what the user is looking at |
 | `image_info` | Return size, dtype, bit depth and min/max/mean for files |
+
+Every user reply is delivered to the agent once. Each reply looks like `{tab, i, path, text, reply_to}`, where `reply_to` is the agent note being answered. The agent receives replies in two ways:
+
+- **Automatically:** new replies are appended, as `user_replies`, to the result of the agent's next tool call, whatever that tool is.
+- **On demand:** the agent can call `get_replies(wait=120)` to wait for the user's answer.
 
 The tool descriptions are kept short, so a client loads about 1k tokens.
 
@@ -62,7 +70,7 @@ The tool descriptions are kept short, so a client loads about 1k tokens.
 
 ## UI keys
 
-`A`/`←` and `Z`/`→`: previous/next · `↑`/`↓`: row (grid) or zoom (image) · `Enter`/`Esc`: image/grid · `F`/`Shift+F`: next/previous flagged · `X`: toggle your own flag · `0`/`1`/`+`/`-`: fit/1:1/zoom · `N`: toggle min/max · `I`: info panel and histogram · `/`: filter · `[`/`]`: switch tab · `W`: close tab · `?`: help.
+`A`/`←` and `Z`/`→`: previous/next · `↑`/`↓`: row (grid) or zoom (image) · `Enter`/`Esc`: image/grid · `F`/`Shift+F`: next/previous flagged · `X`: toggle your own flag · `C`: write a note or reply · `T`/`Shift+T`: next/previous image with notes · `0`/`1`/`+`/`-`: fit/1:1/zoom · `N`: toggle min/max · `I`: info panel and histogram · `/`: filter · `[`/`]`: switch tab · `W`: close tab · `?`: help.
 
 Mouse: wheel zooms, drag pans, double-click toggles fit and 1:1. At high zoom, pixel values are drawn on the pixels.
 

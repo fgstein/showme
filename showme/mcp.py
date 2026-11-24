@@ -13,12 +13,14 @@ INSTRUCTIONS = (
     "Images are shown raw (no processing); 8/12/16-bit and float are supported. "
     "Use open_tab to show images (files, directories or globs; up to 100k). "
     "Flag images that need the user's attention (colored border, optional note). "
-    "Tab ids are returned by open_tab/list_tabs; omitting `tab` means the active tab."
+    "Tab ids are returned by open_tab/list_tabs; omitting `tab` means the active tab. "
+    "Notes on images start a thread the user can reply to; replies are appended to any tool result "
+    "(\"user_replies\") or fetched/awaited with get_replies."
 )
 
 _IMG = {
     "type": "array",
-    "description": "Paths, directories or globs; or objects {path, label?, flag?: color, note?}.",
+    "description": "Paths, directories or globs; or objects {path, label?, flag?: color, note?: text}.",
     "items": {"anyOf": [{"type": "string"}, {"type": "object", "properties": {
         "path": {"type": "string"}, "label": {"type": "string"},
         "flag": {"type": "string"}, "note": {"type": "string"}}, "required": ["path"]}]},
@@ -51,6 +53,13 @@ TOOLS = [
      _obj({"tab": _TAB, "targets": _TARGETS, "color": {"type": "string"}, "note": {"type": "string"},
            "unflag": {"type": "boolean"}}, ["targets"]),
      lambda s, a: s.flag(a.get("tab"), a["targets"], a.get("color"), a.get("note"), bool(a.get("unflag")))),
+    ("note", "Attach a note to images (shown next to them). The user can reply.",
+     _obj({"tab": _TAB, "targets": _TARGETS, "text": {"type": "string"}}, ["targets", "text"]),
+     lambda s, a: s.note(a.get("tab"), a["targets"], a["text"])),
+    ("get_replies", "Get the user's new notes/replies (each with tab, i, path, text, reply_to). "
+                    "wait: seconds to block until one arrives (max 600).",
+     _obj({"wait": {"type": "number"}}),
+     None),  # async, handled below
     ("focus", "Bring a tab to front; with target, open that image in single view.",
      _obj({"tab": _TAB, "target": {"type": ["integer", "string"], "description": "Index or path."},
            "view": {"type": "string", "enum": ["grid", "single"]}}),
@@ -63,10 +72,11 @@ TOOLS = [
      _obj({"tabs": {"anyOf": [{"type": "array", "items": {"type": "string"}}, {"const": "all"}]}}, ["tabs"]),
      lambda s, a: s.close(a["tabs"])),
     ("list_tabs", "List open tabs and the active one.", _obj({}), lambda s, a: s.snapshot()),
-    ("get_items", "List a tab's items (paginated). Flags set by the user have by='user'.",
+    ("get_items", "List a tab's items (paginated) with flags and note threads. Flags set by the user have by='user'.",
      _obj({"tab": _TAB, "offset": {"type": "integer"}, "limit": {"type": "integer", "description": "Default 100."},
-           "flagged_only": {"type": "boolean"}}),
-     lambda s, a: s.items(a.get("tab"), int(a.get("offset") or 0), int(a.get("limit") or 100), bool(a.get("flagged_only")))),
+           "flagged_only": {"type": "boolean"}, "noted_only": {"type": "boolean"}}),
+     lambda s, a: s.items(a.get("tab"), int(a.get("offset") or 0), int(a.get("limit") or 100),
+                          bool(a.get("flagged_only")), bool(a.get("noted_only")))),
     ("get_view", "What the user is currently looking at (tab, view, current item).", _obj({}),
      lambda s, a: s.get_view()),
     ("image_info", "Read image files: size, channels, dtype, bit depth, min/max/mean.",
@@ -126,12 +136,18 @@ async def handle(store: Store, msg: dict, run_sync) -> dict | None:
         try:
             if name == "image_info":
                 res = await run_sync(image_info, args.get("paths") or [])
+            elif name == "get_replies":
+                res = await store.wait_replies(min(600.0, max(0.0, float(args.get("wait") or 0))))
             else:
                 res = TOOL_MAP[name][2](store, args)
             text, is_err = json.dumps(res, separators=(",", ":")), False
         except (UserError, KeyError, TypeError, ValueError) as e:
             text, is_err = f"error: {e}", True
-        return _ok(id_, {"content": [{"type": "text", "text": text}], "isError": is_err})
+        content = [{"type": "text", "text": text}]
+        if store.inbox:  # piggyback user replies on any tool result
+            replies = json.dumps({"user_replies": store.take_replies()}, separators=(",", ":"))
+            content.append({"type": "text", "text": replies})
+        return _ok(id_, {"content": content, "isError": is_err})
     if method in ("resources/list", "prompts/list"):
         return _ok(id_, {method.split("/")[0]: []})
     return _err(id_, -32601, f"method not found: {method}")

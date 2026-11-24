@@ -44,6 +44,8 @@ class Store:
         self._listeners: set[asyncio.Queue] = set()
         self._save_handle = None
         self.on_open = None  # callback when a tab is opened (browser auto-open)
+        self.inbox: list[dict] = []  # user notes not yet delivered to the agent
+        self._inbox_event: asyncio.Event | None = None
         self._load()
 
     # ------------------------------------------------------------------ persistence
@@ -53,8 +55,12 @@ class Store:
         try:
             data = json.loads(self.state_file.read_text())
             for t in data.get("tabs", []):
+                for it in t["items"]:  # legacy single note -> thread
+                    if "note" in it:
+                        it.setdefault("notes", []).insert(0, {"by": "agent", "text": it.pop("note"), "ts": 0})
                 self.tabs[t["id"]] = t
                 self.order.append(t["id"])
+            self.inbox = data.get("inbox", [])
             self.active = data.get("active") if data.get("active") in self.tabs else (self.order[-1] if self.order else None)
         except Exception:  # noqa: BLE001 - corrupt state is not fatal
             self.tabs, self.order = {}, []
@@ -63,7 +69,7 @@ class Store:
         self._save_handle = None
         if not self.state_file:
             return
-        data = {"tabs": [self.tabs[i] for i in self.order], "active": self.active}
+        data = {"tabs": [self.tabs[i] for i in self.order], "active": self.active, "inbox": self.inbox}
         tmp = self.state_file.with_suffix(".tmp")
         try:
             self.state_file.parent.mkdir(parents=True, exist_ok=True)
@@ -109,12 +115,14 @@ class Store:
     def summary(self, t: dict) -> dict:
         return {
             "id": t["id"], "title": t["title"], "note": t.get("note", ""), "count": len(t["items"]),
-            "flagged": sum(1 for it in t["items"] if it.get("flag")), "display": t["display"],
+            "flagged": sum(1 for it in t["items"] if it.get("flag")),
+            "noted": sum(1 for it in t["items"] if it.get("notes")), "display": t["display"],
             "version": t["version"],
         }
 
     def snapshot(self, with_focus: bool = False) -> dict:
-        d = {"tabs": [self.summary(self.tabs[i]) for i in self.order], "active": self.active}
+        d = {"tabs": [self.summary(self.tabs[i]) for i in self.order], "active": self.active,
+             "pending_replies": len(self.inbox)}
         if with_focus and self.focus:
             d["focus"] = self.focus
         return d
@@ -146,11 +154,11 @@ class Store:
                 if spec.get("label") and len(paths) == 1:
                     it["label"] = str(spec["label"])
                 flag = spec.get("flag")
-                if flag or spec.get("note"):
+                if flag:
                     it["flag"] = color_of(flag if isinstance(flag, str) else None)
                     it["by"] = "agent"
-                    if spec.get("note"):
-                        it["note"] = str(spec["note"])
+                if spec.get("note"):
+                    it["notes"] = [{"by": "agent", "text": str(spec["note"]), "ts": time.time()}]
                 out.append(it)
         return out
 
@@ -256,15 +264,59 @@ class Store:
         for i in idx:
             it = t["items"][i]
             if unflag:
-                for k in ("flag", "note", "by"):
-                    it.pop(k, None)
+                it.pop("flag", None)
+                it.pop("by", None)
             else:
                 it["flag"], it["by"] = c, by
-                if note is not None:
-                    it["note"] = str(note)
+                if note:
+                    self._append_note(t, i, note, by)
         t["version"] += 1
         self._changed()
         return {"tab": t["id"], "changed": len(idx), "flagged": sum(1 for it in t["items"] if it.get("flag"))}
+
+    # ------------------------------------------------------------------ notes
+    def _append_note(self, t: dict, i: int, text: str, by: str) -> None:
+        it = t["items"][i]
+        thread = it.setdefault("notes", [])
+        thread.append({"by": by, "text": str(text), "ts": time.time()})
+        if by == "user":
+            prev = next((n["text"] for n in reversed(thread[:-1]) if n["by"] == "agent"), None)
+            msg = {"tab": t["id"], "i": i, "path": it["path"], "text": str(text)}
+            if prev:
+                msg["reply_to"] = prev if len(prev) <= 200 else prev[:200] + "…"
+            self.inbox.append(msg)
+            if self._inbox_event:
+                self._inbox_event.set()
+
+    def note(self, tab_id, targets, text, by: str = "agent") -> dict:
+        if not text or not str(text).strip():
+            raise UserError("text is empty")
+        if by not in ("agent", "user"):
+            raise UserError("by must be agent or user")
+        t = self.tab(tab_id)
+        idx = self._resolve(t, targets)
+        for i in idx:
+            self._append_note(t, i, str(text).strip(), by)
+        t["version"] += 1
+        self._changed()
+        return {"tab": t["id"], "noted": len(idx)}
+
+    def take_replies(self) -> list[dict]:
+        out, self.inbox = self.inbox, []
+        if out:
+            self._changed()
+        return out
+
+    async def wait_replies(self, timeout: float) -> list[dict]:
+        if not self.inbox and timeout > 0:
+            if self._inbox_event is None:
+                self._inbox_event = asyncio.Event()
+            self._inbox_event.clear()
+            try:
+                await asyncio.wait_for(self._inbox_event.wait(), timeout)
+            except asyncio.TimeoutError:
+                pass
+        return self.take_replies()
 
     def close(self, tabs) -> dict:
         if tabs == "all" or tabs == ["all"]:
@@ -295,9 +347,11 @@ class Store:
         self._changed(f)
         return f
 
-    def items(self, tab_id, offset: int = 0, limit: int = 100, flagged_only: bool = False) -> dict:
+    def items(self, tab_id, offset: int = 0, limit: int = 100, flagged_only: bool = False,
+              noted_only: bool = False) -> dict:
         t = self.tab(tab_id)
-        rows = [(i, it) for i, it in enumerate(t["items"]) if not flagged_only or it.get("flag")]
+        rows = [(i, it) for i, it in enumerate(t["items"])
+                if (not flagged_only or it.get("flag")) and (not noted_only or it.get("notes"))]
         page = rows[offset: offset + limit]
         return {"tab": t["id"], "title": t["title"], "total": len(rows),
                 "items": [{"i": i, **it} for i, it in page]}

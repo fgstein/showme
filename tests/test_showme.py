@@ -92,3 +92,29 @@ def test_http(imgs, tmp_path):
     assert c.post("/mcp", json={"jsonrpc": "2.0", "method": "notifications/initialized"}).status_code == 202
     assert c.post("/api/tabs", json={"images": []}).status_code == 400
     assert c.post("/mcp", headers={"Origin": "http://evil.com"}, json={}).status_code == 403
+
+
+def test_notes_and_replies(imgs):
+    s = Store()
+    tid = s.open_tab([str(imgs), {"path": str(imgs / "b8.png"), "note": "hello"}])["tab"]
+    assert s.items(tid, noted_only=True)["total"] == 1
+    s.note(tid, ["a12.tif"], "One cell or two?")
+    assert s.inbox == []
+    s.note(tid, ["a12.tif"], "Two.", by="user")
+
+    async def run_sync(fn, *a):
+        return fn(*a)
+
+    r = asyncio.run(mcp.handle(s, {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                   "params": {"name": "list_tabs", "arguments": {}}}, run_sync))["result"]
+    replies = json.loads(r["content"][1]["text"])["user_replies"]
+    assert replies[0]["text"] == "Two." and replies[0]["reply_to"] == "One cell or two?" and replies[0]["i"] == 0
+    assert s.inbox == []
+
+    async def waiter():
+        task = asyncio.create_task(s.wait_replies(5))
+        await asyncio.sleep(0.05)
+        s.note(tid, [1], "late reply", by="user")
+        return await task
+
+    assert asyncio.run(waiter())[0]["text"] == "late reply"

@@ -6,7 +6,6 @@
 <title>showme</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='1' width='6' height='6' rx='1.5' fill='%230a84ff'/%3E%3Crect x='9' y='1' width='6' height='6' rx='1.5' fill='%238e8e93'/%3E%3Crect x='1' y='9' width='6' height='6' rx='1.5' fill='%238e8e93'/%3E%3Crect x='9' y='9' width='6' height='6' rx='1.5' fill='%23ff9f0a'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/style.css">
-<link rel="stylesheet" href="/static/themes.css">
 </head>
 <body>
 <div id="app">
@@ -66,6 +65,11 @@
         <button class="nav next" id="btn-next" title="Next (Z / →)">›</button>
         <div id="viewer-msg"></div>
       </div>
+      <div id="thread" hidden>
+        <div class="th-head" id="th-head" title="Collapse / expand"><span id="th-title">Notes</span><span class="spacer"></span><button class="icon" id="th-toggle">–</button></div>
+        <div id="th-list"></div>
+        <textarea id="th-input" rows="1" placeholder="Reply… (Enter to send, Shift+Enter for newline)"></textarea>
+      </div>
       <div id="empty" hidden>
         <div class="empty-box">
           <div class="empty-title">No images</div>
@@ -84,6 +88,7 @@
     <span id="st-pos" class="mono"></span>
     <span id="st-name" class="ellipsis"></span>
     <span id="st-flag" class="ellipsis"></span>
+    <span id="st-note" class="ellipsis"></span>
     <div class="spacer"></div>
     <span id="st-pixel" class="mono"></span>
     <span id="st-meta" class="mono muted"></span>
@@ -99,6 +104,8 @@
       <tr><td><kbd>Enter</kbd> / <kbd>Esc</kbd></td><td>Open image / back to grid</td></tr>
       <tr><td><kbd>F</kbd> / <kbd>Shift F</kbd></td><td>Next / previous flagged</td></tr>
       <tr><td><kbd>X</kbd></td><td>Toggle flag on current image</td></tr>
+      <tr><td><kbd>C</kbd></td><td>Write a note / reply on current image</td></tr>
+      <tr><td><kbd>T</kbd> / <kbd>Shift T</kbd></td><td>Next / previous image with notes</td></tr>
       <tr><td><kbd>Home</kbd> / <kbd>End</kbd></td><td>First / last</td></tr>
       <tr><td><kbd>0</kbd> / <kbd>1</kbd> / <kbd>+</kbd> <kbd>-</kbd></td><td>Fit / 1:1 / zoom</td></tr>
       <tr><td><kbd>N</kbd></td><td>Toggle min/max normalization</td></tr>
