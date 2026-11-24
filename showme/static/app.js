@@ -287,32 +287,14 @@ function makeCell() {
   };
   el._img.onerror = () => { if (el._img.getAttribute('src')) el._cap.textContent = '⚠ ' + el._cap.textContent; };
   el.onclick = () => openSingle(el._pos);
-  el.onmouseenter = (e) => showHint(el, e);
-  el.onmousemove = (e) => moveHint(e);
+  el.onmouseenter = () => showHint(el);
   el.onmouseleave = hideHint;
   return el;
 }
 
-// hover hint on thumbnails
-function showHint(el, e) {
-  const d = td(); if (!d) return;
-  const it = d.items[el._i], ln = lastNote(it), h = $('hint');
-  h.textContent = '';
-  const add = (cls, text) => { const s = document.createElement('div'); s.className = cls; s.textContent = text; h.appendChild(s); return s; };
-  add('h-name', itemName(it));
-  add('h-path', `#${el._i} · ${it.path}`);
-  if (it.flag) add('h-flag', it.by === 'user' ? '⚑ flagged by you' : '⚑ flagged').style.color = flagCss(it.flag);
-  if (ln) add('h-note', `${ln.by === 'user' ? 'You' : 'Agent'}: ${ln.text}`);
-  h.hidden = false; moveHint(e);
-}
-function moveHint(e) {
-  const h = $('hint'), pad = 14;
-  let x = e.clientX + pad, y = e.clientY + pad;
-  if (x + h.offsetWidth > innerWidth - 4) x = e.clientX - h.offsetWidth - pad;
-  if (y + h.offsetHeight > innerHeight - 4) y = e.clientY - h.offsetHeight - pad;
-  h.style.transform = `translate(${x}px, ${y}px)`;
-}
-function hideHint() { $('hint').hidden = true; }
+// hovering a thumbnail shows its info in the status bar (back to the current image on leave)
+function showHint(el) { const d = td(); if (d && d.ui.view === 'grid') { S.hover = el._pos; updateStatus(); } }
+function hideHint() { if (S.hover != null) { S.hover = null; updateStatus(); } }
 
 function fillCell(el, d, p) {
   const i = d.list[p], it = d.items[i];
@@ -771,9 +753,10 @@ function updateStatus() {
   const d = td();
   renderThread();
   if (!d || !d.list.length) { $('st-pos').textContent = ''; $('st-name').textContent = ''; $('st-flag').textContent = ''; $('st-note').textContent = ''; $('st-meta').textContent = ''; return; }
-  const i = d.list[d.pos], it = d.items[i];
+  const pos = S.hover != null && S.hover < d.list.length && d.ui.view === 'grid' ? S.hover : d.pos;
+  const i = d.list[pos], it = d.items[i];
   const total = d.items.length, n = d.list.length;
-  $('st-pos').textContent = `${(d.pos + 1).toLocaleString()} / ${n.toLocaleString()}${n !== total ? ` (of ${total.toLocaleString()})` : ''}`;
+  $('st-pos').textContent = `${(pos + 1).toLocaleString()} / ${n.toLocaleString()}${n !== total ? ` (of ${total.toLocaleString()})` : ''}`;
   $('st-name').textContent = it.path;
   $('st-name').title = it.path;
   const f = $('st-flag');

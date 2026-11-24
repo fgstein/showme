@@ -186,10 +186,4 @@ kbd { font: 11px ui-monospace, Menlo, monospace; background: var(--bg); border: 
   border: 1px solid var(--border); background: var(--panel); color: var(--text); box-shadow: var(--shadow); opacity: .85; }
 #btn-add-note:hover { opacity: 1; background: var(--panel-2); }
 #offline { color: var(--danger); }
-#hint { position: fixed; left: 0; top: 0; z-index: 20; max-width: 380px; padding: 6px 9px; pointer-events: none;
-  background: var(--panel); border: 1px solid var(--border); border-radius: 6px; box-shadow: var(--shadow); }
-#hint .h-name { font-weight: 600; }
-#hint .h-path { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
-#hint .h-flag { font-size: 11px; margin-top: 2px; }
-#hint .h-note { margin-top: 4px; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .cell { cursor: pointer; }
