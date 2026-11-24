@@ -27,6 +27,7 @@ const GAP = 6, PAD = 8, CAP = 16;
 function summary(id) { return S.tabs.find((t) => t.id === id); }
 function td() { return S.active ? S.data.get(S.active) : null; }
 function basename(p) { return p.slice(p.lastIndexOf('/') + 1); }
+function flagCss(f) { return f && f[0] === '#' ? f : `var(--flag-${f || 'default'})`; }
 function itemName(it) { return it.label || basename(it.path); }
 function displayOf(id) { return (summary(id) || {}).display || { mode: 'native' }; }
 
@@ -142,6 +143,7 @@ function closeTab(id) {
 function renderTabs() {
   const box = $('tabs');
   box.textContent = '';
+  if (!S.tabs.length) { const e = document.createElement('span'); e.className = 'no-tabs'; e.textContent = 'No open tabs'; box.appendChild(e); }
   for (const t of S.tabs) {
     const el = document.createElement('div');
     el.className = 'tab' + (t.id === S.active ? ' active' : '');
@@ -270,7 +272,7 @@ function fillCell(el, d, p) {
   el.classList.toggle('sel', p === d.pos);
   let badge = el._th.querySelector('.fbadge');
   if (it.flag) {
-    el.style.setProperty('--fc', it.flag);
+    el.style.setProperty('--fc', flagCss(it.flag));
     if (!badge) { badge = document.createElement('span'); badge.className = 'fbadge'; el._th.appendChild(badge); }
   } else if (badge) badge.remove();
   const want = thumbUrl(d.id, i);
@@ -453,7 +455,7 @@ async function showCurrent() {
   const i = d.list[d.pos], key = `${d.id}:${i}`;
   const it = d.items[i];
   $('viewer').classList.toggle('flagged', !!it.flag);
-  if (it.flag) $('viewer').style.setProperty('--fc', it.flag);
+  if (it.flag) $('viewer').style.setProperty('--fc', flagCss(it.flag));
   if (V.key === key && V.img) { drawViewer(V.dispKey !== dispKey()); return; }
   V.key = key; V.err = null;
   let img;
@@ -612,7 +614,7 @@ function updateStatus() {
   const f = $('st-flag');
   f.textContent = it.flag ? `⚑ ${it.note || (it.by === 'user' ? 'flagged by you' : 'flagged')}` : '';
   f.title = it.note || '';
-  if (it.flag) f.style.setProperty('--fc', it.flag);
+  if (it.flag) f.style.setProperty('--fc', flagCss(it.flag));
   const img = d.ui.view === 'single' && V.img && V.key === `${d.id}:${i}` ? V.img : null;
   if (img) {
     const m = img.meta, [lo, hi] = windowOf(img);
@@ -672,15 +674,16 @@ function drawHistogram(img, win) {
   }
   let top = 1;
   for (const b of bins) for (const v of b) top = Math.max(top, Math.sqrt(v));
-  const colors = ch === 1 ? ['#8e8e93'] : ['#ff453a', '#30d158', '#0a84ff'];
+  const cs = getComputedStyle(document.documentElement), cv_ = (n) => cs.getPropertyValue(n).trim();
+  const colors = ch === 1 ? [cv_('--hist')] : [cv_('--hist-r'), cv_('--hist-g'), cv_('--hist-b')];
   g.globalCompositeOperation = ch === 1 ? 'source-over' : 'lighter';
   bins.forEach((b, j) => {
-    g.fillStyle = colors[j] + (ch === 1 ? '' : 'b0');
+    g.fillStyle = colors[j]; g.globalAlpha = ch === 1 ? 1 : 0.7;
     g.beginPath(); g.moveTo(0, H);
     for (let k = 0; k < B; k++) { const y = H - Math.sqrt(b[k]) / top * (H - 2); g.lineTo(k * W / B, y); g.lineTo((k + 1) * W / B, y); }
     g.lineTo(W, H); g.closePath(); g.fill();
   });
-  g.globalCompositeOperation = 'source-over';
+  g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
   if (win) {
     g.strokeStyle = getComputedStyle(document.body).getPropertyValue('--accent');
     for (const v of win) { const x = (v - mn) / (mx - mn) * W; if (x >= 0 && x <= W) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); } }
@@ -811,6 +814,8 @@ document.addEventListener('keydown', (e) => {
 (function boot() {
   const theme = store.get('theme', null) || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
   document.documentElement.dataset.theme = theme;
+  const da = new URLSearchParams(location.search).get('da') || store.get('da', null);
+  if (da) { document.documentElement.dataset.da = da; store.set('da', da); }
   render();
   connect();
 })();

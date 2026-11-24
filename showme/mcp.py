@@ -47,7 +47,7 @@ TOOLS = [
      _obj({"tab": _TAB, "images": _IMG, "recursive": {"type": "boolean"}}, ["images"]),
      lambda s, a: s.add_images(a.get("tab"), a["images"], bool(a.get("recursive")))),
     ("flag", f"Flag images needing attention (colored border, optional note) or unflag them. "
-             f"Colors: {', '.join(FLAG_COLORS)} or #hex (default orange).",
+             f"Colors: {', '.join(FLAG_COLORS)} or #hex.",
      _obj({"tab": _TAB, "targets": _TARGETS, "color": {"type": "string"}, "note": {"type": "string"},
            "unflag": {"type": "boolean"}}, ["targets"]),
      lambda s, a: s.flag(a.get("tab"), a["targets"], a.get("color"), a.get("note"), bool(a.get("unflag")))),

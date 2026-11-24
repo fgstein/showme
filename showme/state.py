@@ -12,12 +12,10 @@ from pathlib import Path
 
 from . import imaging
 
-FLAG_COLORS = {
-    "red": "#ff453a", "orange": "#ff9f0a", "yellow": "#ffd60a", "green": "#30d158",
-    "blue": "#0a84ff", "purple": "#bf5af2", "pink": "#ff375f", "cyan": "#64d2ff",
-}
-DEFAULT_FLAG = "orange"
-USER_FLAG = "purple"
+# Flags are stored by name so the UI theme picks the actual color; #hex is kept as is.
+FLAG_COLORS = ("default", "red", "orange", "yellow", "green", "blue", "purple", "pink", "cyan")
+DEFAULT_FLAG = "default"
+USER_FLAG = "user"
 _HEX = re.compile(r"^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$")
 
 
@@ -27,8 +25,8 @@ class UserError(ValueError):
 
 def color_of(c: str | None) -> str:
     c = (c or DEFAULT_FLAG).strip().lower()
-    if c in FLAG_COLORS:
-        return FLAG_COLORS[c]
+    if c in FLAG_COLORS or c == USER_FLAG:
+        return c
     if _HEX.match(c):
         return c
     raise UserError(f"invalid color {c!r}: use a name ({', '.join(FLAG_COLORS)}) or #hex")
@@ -254,7 +252,7 @@ class Store:
     def flag(self, tab_id, targets, color=None, note=None, unflag: bool = False, by: str = "agent") -> dict:
         t = self.tab(tab_id)
         idx = self._resolve(t, targets)
-        c = None if unflag else color_of(color or (USER_FLAG if by == "user" else None))
+        c = None if unflag else (USER_FLAG if by == "user" and not color else color_of(color))
         for i in idx:
             it = t["items"][i]
             if unflag:

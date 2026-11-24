@@ -1,0 +1,89 @@
+/* Art directions (dark). Selected with <html data-da="...">. Each one only overrides tokens + a few shapes. */
+
+/* 1. Graphite: neutral, near-monochrome, ice-blue accent, coral flags */
+:root[data-da="graphite"] {
+  --bg: #161617; --panel: #1c1c1e; --panel-2: #242426; --border: #2b2b2e; --text: #dcdcde; --muted: #7c7c82;
+  --hover: rgba(255,255,255,.05); --active: rgba(255,255,255,.09);
+  --accent: #7aa2ff; --accent-soft: rgba(122,162,255,.14); --stage: #111112; --cell: #1a1a1c;
+  --check-a: #222224; --check-b: #1a1a1c; --ok: #5fd39a;
+  --note-bg: #1f2230; --note-text: #b9c6ec;
+  --flag-default: #ff6b5b; --flag-user: #b59cff; --flag-red: #ff5c5c; --flag-orange: #ff8a4c; --flag-yellow: #e8c547;
+  --flag-green: #5fd39a; --flag-blue: #6fa0ff; --flag-purple: #b59cff; --flag-pink: #ff7eb6; --flag-cyan: #5cc8e0;
+  --hist: #8a8a90; --hist-r: #ff6b6b; --hist-g: #5fd39a; --hist-b: #6fa0ff;
+}
+:root[data-da="graphite"] .tab { border-radius: 0; height: 32px; box-shadow: none !important; background: none !important; border-bottom: 2px solid transparent; }
+:root[data-da="graphite"] .tab.active { border-bottom-color: var(--accent); }
+:root[data-da="graphite"] #tabbar { height: 32px; }
+:root[data-da="graphite"] .cell { border-radius: 4px; }
+
+/* 2. Darkroom: pure black stage, flat squared UI, teal accent, magenta flags */
+:root[data-da="darkroom"] {
+  --bg: #0b0b0b; --panel: #111111; --panel-2: #191919; --border: #222222; --text: #d6d6d6; --muted: #6f6f6f;
+  --hover: rgba(255,255,255,.04); --active: rgba(255,255,255,.08);
+  --accent: #2dd4bf; --accent-soft: rgba(45,212,191,.12); --stage: #000000; --cell: #0d0d0d;
+  --check-a: #1a1a1a; --check-b: #0f0f0f; --ok: #2dd4bf;
+  --note-bg: #0f1a19; --note-text: #9fe3d8;
+  --flag-default: #f0509a; --flag-user: #2dd4bf; --flag-red: #ff4d4d; --flag-orange: #ff8c42; --flag-yellow: #e6d34a;
+  --flag-green: #4ade80; --flag-blue: #4c9dff; --flag-purple: #a78bfa; --flag-pink: #f0509a; --flag-cyan: #2dd4bf;
+  --hist: #7a7a7a; --hist-r: #ff5a5a; --hist-g: #4ade80; --hist-b: #4c9dff;
+}
+:root[data-da="darkroom"] * { border-radius: 0 !important; }
+:root[data-da="darkroom"] .dot { border-radius: 50% !important; }
+:root[data-da="darkroom"] .tab { text-transform: uppercase; letter-spacing: .06em; font-size: 10.5px; box-shadow: none !important; }
+:root[data-da="darkroom"] .tab.active { background: var(--panel-2); box-shadow: inset 0 2px 0 var(--accent) !important; }
+:root[data-da="darkroom"] .cell { padding: 0; background: transparent; }
+:root[data-da="darkroom"] .cell .cap { padding: 2px 3px 0; text-transform: none; }
+:root[data-da="darkroom"] .cell.sel { box-shadow: 0 0 0 1px var(--accent); background: transparent; }
+:root[data-da="darkroom"] .cell.flagged { box-shadow: 0 0 0 2px var(--fc); }
+:root[data-da="darkroom"] .cell.flagged.sel { box-shadow: 0 0 0 2px var(--fc), 0 0 0 3px var(--accent); }
+:root[data-da="darkroom"] #toolbar button, :root[data-da="darkroom"] #toolbar select, :root[data-da="darkroom"] #toolbar input[type=search] { background: transparent; }
+
+/* 3. Slate Lab: blue-tinted slate, technical, monospace data */
+:root[data-da="slate"] {
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  --bg: #0d1117; --panel: #151b23; --panel-2: #1c2430; --border: #262f3b; --text: #d1d9e0; --muted: #7d8a99;
+  --hover: rgba(160,190,255,.06); --active: rgba(160,190,255,.1);
+  --accent: #4ea1ff; --accent-soft: rgba(78,161,255,.15); --stage: #090c11; --cell: #121820;
+  --check-a: #1a212b; --check-b: #121820; --ok: #3fb950;
+  --note-bg: #122033; --note-text: #a8c7f0;
+  --flag-default: #ff7b72; --flag-user: #d2a8ff; --flag-red: #ff7b72; --flag-orange: #ffa657; --flag-yellow: #e3b341;
+  --flag-green: #56d364; --flag-blue: #58a6ff; --flag-purple: #d2a8ff; --flag-pink: #ff9bce; --flag-cyan: #56d4dd;
+  --hist: #7d8a99; --hist-r: #ff7b72; --hist-g: #56d364; --hist-b: #58a6ff;
+}
+:root[data-da="slate"] .cell .cap, :root[data-da="slate"] .tab .t-title, :root[data-da="slate"] #st-name { font-family: var(--font-mono); font-size: 11px; }
+:root[data-da="slate"] .tab.active { box-shadow: 0 0 0 1px var(--border) inset, inset 0 -2px 0 var(--accent); }
+:root[data-da="slate"] .cell { border: 1px solid var(--border); padding: 2px; }
+:root[data-da="slate"] #status { background: var(--bg); }
+
+/* 4. Indigo: soft, rounded, violet accent (Linear-like) */
+:root[data-da="indigo"] {
+  --bg: #121218; --panel: #17171f; --panel-2: #20202b; --border: #2a2a37; --text: #e2e2ea; --muted: #82829a;
+  --hover: rgba(150,140,255,.07); --active: rgba(150,140,255,.12);
+  --accent: #8b7cf6; --accent-soft: rgba(139,124,246,.18); --stage: #0d0d12; --cell: #1a1a23;
+  --check-a: #22222d; --check-b: #1a1a23; --ok: #4ade80;
+  --note-bg: #1d1a33; --note-text: #c7bfff;
+  --flag-default: #fb7185; --flag-user: #67e8f9; --flag-red: #f87171; --flag-orange: #fb923c; --flag-yellow: #facc15;
+  --flag-green: #4ade80; --flag-blue: #60a5fa; --flag-purple: #c084fc; --flag-pink: #fb7185; --flag-cyan: #67e8f9;
+  --hist: #8f8fb0; --hist-r: #f87171; --hist-g: #4ade80; --hist-b: #60a5fa;
+}
+:root[data-da="indigo"] .tab { border-radius: 8px; }
+:root[data-da="indigo"] .cell { border-radius: 10px; padding: 4px; }
+:root[data-da="indigo"] .cell .th { border-radius: 7px; }
+:root[data-da="indigo"] #toolbar button, :root[data-da="indigo"] #toolbar select, :root[data-da="indigo"] #toolbar input[type=search] { border-radius: 7px; border-color: transparent; background: var(--panel-2); }
+:root[data-da="indigo"] .seg { border-radius: 8px; border-color: transparent; background: var(--panel-2); }
+
+/* 5. Mono: zero-hue UI; white is the accent, only flags carry color */
+:root[data-da="mono"] {
+  --bg: #141414; --panel: #181818; --panel-2: #222222; --border: #2a2a2a; --text: #e8e8e8; --muted: #777777;
+  --hover: rgba(255,255,255,.05); --active: rgba(255,255,255,.1);
+  --accent: #f2f2f2; --accent-soft: rgba(255,255,255,.08); --stage: #0e0e0e; --cell: #181818;
+  --check-a: #222; --check-b: #1a1a1a; --ok: #9a9a9a;
+  --note-bg: #1c1c1c; --note-text: #bdbdbd;
+  --flag-default: #ff4d4d; --flag-user: #4da3ff; --flag-red: #ff4d4d; --flag-orange: #ff8a3d; --flag-yellow: #e0c341;
+  --flag-green: #3ecf7a; --flag-blue: #4da3ff; --flag-purple: #a98bff; --flag-pink: #ff6fae; --flag-cyan: #3fc9d9;
+  --hist: #9a9a9a; --hist-r: #ff5c5c; --hist-g: #3ecf7a; --hist-b: #4da3ff;
+}
+:root[data-da="mono"] .tab.active { box-shadow: none; background: var(--panel-2); }
+:root[data-da="mono"] .cell.sel { box-shadow: 0 0 0 1.5px var(--accent); background: var(--panel-2); }
+:root[data-da="mono"] #toolbar button.toggle.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+:root[data-da="mono"] #notebar { border-left: 2px solid var(--muted); }
