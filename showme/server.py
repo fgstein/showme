@@ -234,13 +234,6 @@ def create_app(store: Store | None = None, thumb_dir: Path | None = None, open_b
             return Response(status_code=202)
         return JSONResponse(out)
 
-    async def shutdown(request: Request):
-        if not local_origin(request):
-            return jerr("forbidden origin", 403)
-        store.flush()
-        threading.Timer(0.2, lambda: os._exit(0)).start()
-        return JSONResponse({"ok": True})
-
     routes = [
         Route("/", index),
         Route("/api/health", health),
@@ -255,7 +248,6 @@ def create_app(store: Store | None = None, thumb_dir: Path | None = None, open_b
         Route("/api/focus", focus, methods=["POST"]),
         Route("/api/view", view, methods=["GET", "POST"]),
         Route("/api/events", events),
-        Route("/api/shutdown", shutdown, methods=["POST"]),
         Route("/mcp", mcp_endpoint, methods=["GET", "POST", "DELETE"]),
         Mount("/static", StaticFiles(directory=STATIC)),
     ]
@@ -270,7 +262,7 @@ def create_app(store: Store | None = None, thumb_dir: Path | None = None, open_b
 
 
 def serve(host: str = "127.0.0.1", port: int = DEFAULT_PORT, open_browser: bool = True,
-          persist: bool = True, public_url: str | None = None) -> None:
+          persist: bool = True, public_url: str | None = None, initial: dict | None = None) -> None:
     import uvicorn
 
     state_dir, cache_dir = data_dirs()
@@ -278,6 +270,11 @@ def serve(host: str = "127.0.0.1", port: int = DEFAULT_PORT, open_browser: bool 
     url = public_url or os.environ.get("SHOWME_URL") or \
         f"http://{'localhost' if host in ('127.0.0.1', '0.0.0.0', '::') else host}:{port}/"
     url = url.rstrip("/") + "/"
+    if initial:  # before create_app, so the browser is opened once, below
+        store.base_url = url
+        print(store.open_tab(initial["images"], initial.get("title"), recursive=bool(initial.get("recursive")))["url"])
     app = create_app(store, cache_dir / "thumbs", open_browser, url)
-    print(f"showme {__version__} — UI {url}  MCP {url}mcp", flush=True)
+    print(f"showme {__version__}\n  UI   {url}\n  MCP  {url}mcp", flush=True)
+    if open_browser and initial:
+        threading.Timer(0.8, webbrowser.open, args=(url,)).start()
     uvicorn.run(app, host=host, port=port, log_level="warning", timeout_graceful_shutdown=1)

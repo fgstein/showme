@@ -1,11 +1,7 @@
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "showme"
 version = "0.2.0"
-description = "Raw image viewer for humans, driven by agents (CLI + MCP)."
+description = "Raw image viewer for humans, driven by agents (web UI + MCP)."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -17,14 +13,15 @@ dependencies = [
   "uvicorn>=0.29",
 ]
 
-[project.optional-dependencies]
-test = ["pytest", "httpx"]
-
 [project.scripts]
 showme = "showme.cli:main"
 
-[tool.setuptools]
-packages = ["showme"]
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27"]
 
-[tool.setuptools.package-data]
-showme = ["static/*"]
+[build-system]
+requires = ["uv_build>=0.8,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
